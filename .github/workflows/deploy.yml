@@ -5,6 +5,11 @@ on:
     branches: [develop]
   workflow_dispatch:
 
+# 同一应用只允许一个部署；与主站前端用不同产物名，避免与其它站点共用同名产物冲突
+concurrency:
+  group: deploy-reviewmaster-admin
+  cancel-in-progress: true
+
 env:
   DEPLOY_PATH: '/opt/ReviewMasterAdmin'
 
@@ -42,7 +47,7 @@ jobs:
           echo "dist OK: $(wc -l < dist/MANIFEST.sha256) files verified"
 
       - name: Package dist
-        run: tar czf dist.tar.gz -C dist .
+        run: tar czf reviewmaster-admin-dist.tar.gz -C dist .
 
       - name: Upload artifact to server
         env:
@@ -53,7 +58,7 @@ jobs:
         run: |
           printf '%s\n' "$SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
-          scp -O -i /tmp/deploy_key -o StrictHostKeyChecking=no -P "${R_PORT:-22}" dist.tar.gz "${R_USER}@${R_HOST}:/tmp/"
+          scp -O -i /tmp/deploy_key -o StrictHostKeyChecking=no -P "${R_PORT:-22}" reviewmaster-admin-dist.tar.gz "${R_USER}@${R_HOST}:/tmp/"
 
       - name: Remote deploy
         uses: appleboy/ssh-action@v1.2.0
@@ -67,11 +72,11 @@ jobs:
             DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
             STAGE="$(mktemp -d /tmp/rm-admin-XXXXXX)"
             trap 'rm -rf "$STAGE"' EXIT
-            tar xzf /tmp/dist.tar.gz -C "$STAGE"
+            tar xzf /tmp/reviewmaster-admin-dist.tar.gz -C "$STAGE"
             (cd "$STAGE" && sha256sum -c MANIFEST.sha256)
             rm -rf "$DEPLOY_PATH"
             mv "$STAGE" "$DEPLOY_PATH"
             trap - EXIT
-            rm -f /tmp/dist.tar.gz
+            rm -f /tmp/reviewmaster-admin-dist.tar.gz
             chmod -R 755 "$DEPLOY_PATH"
             echo "Admin deploy OK: $DEPLOY_PATH"
