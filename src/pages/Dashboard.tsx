@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../api';
 import type { ModuleMetric, Overview, SeriesPoint } from '../api';
 import { DaysTabs, Empty, ErrorMsg, Kpi, Panel } from '../components/ui';
-import { LineChart } from '../components/Charts';
+import { EChart } from '../components/EChart';
+import type { ChartOption } from '../components/EChart';
 import { fmtInt, fmtPct } from '../format';
 import { moduleLabel } from '../labels';
 
@@ -27,6 +28,23 @@ export function Dashboard() {
     return () => { alive = false; };
   }, [days]);
 
+  const lineOption = useMemo<ChartOption>(() => ({
+    color: ['#4f46e5', '#059669', '#dc2626'],
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['活跃用户', '转化', '错误'], right: 0, top: 0, textStyle: { color: '#64748b' } },
+    grid: { left: 44, right: 16, top: 36, bottom: 28 },
+    xAxis: {
+      type: 'category', boundaryGap: false, data: series.map((s) => s.date.slice(5)),
+      axisLine: { lineStyle: { color: '#e2e8f0' } }, axisLabel: { color: '#94a3b8' },
+    },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: '#eef2f7' } }, axisLabel: { color: '#94a3b8' } },
+    series: [
+      { name: '活跃用户', type: 'line', smooth: true, symbol: 'none', areaStyle: { color: 'rgba(79,70,229,.10)' }, data: series.map((s) => s.users) },
+      { name: '转化', type: 'line', smooth: true, symbol: 'none', data: series.map((s) => s.conversions) },
+      { name: '错误', type: 'line', smooth: true, symbol: 'none', data: series.map((s) => s.errors) },
+    ],
+  }), [series]);
+
   return (
     <div className="page">
       <div className="page-head">
@@ -46,16 +64,7 @@ export function Dashboard() {
           </div>
 
           <Panel title={'趋势（近 ' + days + ' 天）'}>
-            {series.length === 0 ? <Empty /> : (
-              <LineChart
-                labels={series.map((s) => s.date.slice(5))}
-                series={[
-                  { name: '活跃用户', color: '#4f46e5', values: series.map((s) => s.users) },
-                  { name: '转化', color: '#059669', values: series.map((s) => s.conversions) },
-                  { name: '错误', color: '#dc2626', values: series.map((s) => s.errors) },
-                ]}
-              />
-            )}
+            {series.length === 0 ? <Empty /> : <EChart option={lineOption} height={260} />}
           </Panel>
 
           <Panel title="模块表现 Top 8">

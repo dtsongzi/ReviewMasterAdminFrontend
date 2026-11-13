@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../api';
 import type { PerformanceResult } from '../api';
 import { DaysTabs, Empty, ErrorMsg, Kpi, Panel } from '../components/ui';
+import { EChart } from '../components/EChart';
+import type { ChartOption } from '../components/EChart';
 import { fmtInt, fmtMs, fmtPct } from '../format';
 
 const SCREEN_LABELS: Record<string, string> = {
@@ -26,6 +28,29 @@ export function Performance() {
     return () => { alive = false; };
   }, [days]);
 
+  const barOption = useMemo<ChartOption>(() => {
+    const top = [...(data?.api || [])].sort((a, b) => b.p95 - a.p95).slice(0, 10).reverse();
+    return {
+      color: ['#4f46e5'],
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: 190, right: 76, top: 16, bottom: 24 },
+      xAxis: {
+        type: 'value', splitLine: { lineStyle: { color: '#eef2f7' } },
+        axisLabel: { color: '#94a3b8', formatter: '{value} ms' },
+      },
+      yAxis: {
+        type: 'category', data: top.map((a) => a.name),
+        axisLabel: { color: '#475569', fontSize: 11, width: 170, overflow: 'truncate' },
+        axisLine: { lineStyle: { color: '#e2e8f0' } },
+      },
+      series: [{
+        name: 'P95', type: 'bar', data: top.map((a) => a.p95), barWidth: 14,
+        itemStyle: { borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', formatter: '{c} ms', color: '#64748b' },
+      }],
+    };
+  }, [data]);
+
   return (
     <div className="page">
       <div className="page-head">
@@ -49,6 +74,12 @@ export function Performance() {
           </div>
         )}
       </Panel>
+
+      {data && data.api.length > 0 ? (
+        <Panel title="接口 P95 耗时 Top 10">
+          <EChart option={barOption} height={Math.max(220, Math.min(400, data.api.length * 26 + 40))} />
+        </Panel>
+      ) : null}
 
       <Panel title={'接口耗时（近 ' + days + ' 天）'}>
         {!data ? <div className="loading">加载中…</div> : data.api.length === 0 ? <Empty /> : (

@@ -1,14 +1,16 @@
 # 复盘大师 · 管理后台
 
-React + TypeScript + Vite。零图表依赖（手写 SVG 折线/条形），HashRouter，可部署到任意子路径。
+React + TypeScript + Vite + **ECharts**（按需引入）。HashRouter，可部署到任意子路径。
+
+**默认分支：`develop`**（本仓库只使用 develop）。
 
 ## 功能
 
 - **登录**：管理员账号（后端 `ADMIN_USERNAME` / `ADMIN_PASSWORD`），JWT 12h。
-- **数据概览**：用户数、会员数、新增、活跃、事件、转化、错误；趋势图；模块 Top 8。
+- **数据概览**：用户数、会员数、新增、活跃、事件、转化、错误；ECharts 趋势折线；模块 Top 8。
 - **用户管理**：搜索（用户名/手机号/ID）、分页；展示 id、手机号、会员状态、注册时间、最后活跃。
-- **业务指标**：各模块浏览/点击/转化/独立用户/渗透率/点击率/转化率/错误率。
-- **性能指标**：接口次数/平均/P50/P95/最大/错误率；首屏 TTFB/FCP/LCP/DOM/LOAD。
+- **业务指标**：ECharts 模块漏斗柱状图 + 表格（浏览/点击/转化/渗透率/点击率/转化率/错误率）。
+- **性能指标**：ECharts 接口 P95 Top 10 横向柱状 + 首屏 TTFB/FCP/LCP/DOM/LOAD + 接口明细表。
 
 ## 开发
 
@@ -26,12 +28,34 @@ npm run build    # tsc --noEmit && vite build → dist/
 npm run preview  # 本地预览产物
 ```
 
-`base: './'`，静态托管于任意路径均可；HashRouter 刷新不需要服务端 rewrite。
+## 部署（GitHub Actions）
 
-## 部署
+推送到 `develop` 触发 `.github/workflows/deploy.yml`：
 
-把 `dist/` 交给 Nginx/静态服务器，并将 `/api` 反代到后端。管理后台建议独立域名/路径，并加访问限制
-（IP 白名单或 Basic Auth），避免公网直接暴露登录入口。
+1. `npm ci` → `npm run typecheck` → `npm run build`
+2. 校验 `dist/` 资源、生成 `MANIFEST.sha256`
+3. scp 到服务器 `/tmp`，远端校验完整性后**原子替换** `/opt/ReviewMasterAdmin`
+
+仓库 **Settings → Secrets and variables → Actions** 需配置（与主站相同）：
+
+| Secret | 说明 |
+|---|---|
+| `ECS_HOST` | 服务器地址 |
+| `ECS_USER` | SSH 用户 |
+| `ECS_SSH_KEY` | SSH 私钥 |
+| `ECS_PORT` | SSH 端口（可选，默认 22） |
+
+Nginx 增加静态托管（示例）：
+
+```nginx
+location /reviewmaster-admin/ {
+    alias /opt/ReviewMasterAdmin/;
+    try_files $uri $uri/ /reviewmaster-admin/index.html;
+}
+```
+
+`base: './'` 使资源按相对路径加载，HashRouter 刷新无需服务端 rewrite。管理后台建议加
+IP 白名单或 Basic Auth，避免公网直接暴露登录入口。
 
 ## 数据来源
 

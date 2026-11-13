@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../api';
 import type { BusinessResult } from '../api';
 import { DaysTabs, Empty, ErrorMsg, Panel } from '../components/ui';
 import { Bar } from '../components/Charts';
+import { EChart } from '../components/EChart';
+import type { ChartOption } from '../components/EChart';
 import { fmtInt, fmtPct } from '../format';
 import { moduleLabel } from '../labels';
 
@@ -23,6 +25,27 @@ export function Business() {
   const modules = data?.modules || [];
   const maxConv = Math.max(0.0001, ...modules.map((m) => m.conversionRate));
 
+  const barOption = useMemo<ChartOption>(() => {
+    const top = (data?.modules || []).slice(0, 12);
+    return {
+      color: ['#4f46e5', '#38bdf8', '#059669'],
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['浏览', '点击', '转化'], top: 0, textStyle: { color: '#64748b' } },
+      grid: { left: 44, right: 16, top: 36, bottom: 58 },
+      xAxis: {
+        type: 'category', data: top.map((m) => moduleLabel(m.module)),
+        axisLabel: { interval: 0, rotate: 28, color: '#64748b', fontSize: 11 },
+        axisLine: { lineStyle: { color: '#e2e8f0' } },
+      },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#eef2f7' } }, axisLabel: { color: '#94a3b8' } },
+      series: [
+        { name: '浏览', type: 'bar', data: top.map((m) => m.views) },
+        { name: '点击', type: 'bar', data: top.map((m) => m.clicks) },
+        { name: '转化', type: 'bar', data: top.map((m) => m.conversions) },
+      ],
+    };
+  }, [data]);
+
   return (
     <div className="page">
       <div className="page-head">
@@ -30,6 +53,11 @@ export function Business() {
         <DaysTabs days={days} onChange={setDays} />
       </div>
       <ErrorMsg msg={error} />
+      {data && modules.length > 0 ? (
+        <Panel title="模块漏斗对比（浏览 / 点击 / 转化）">
+          <EChart option={barOption} height={300} />
+        </Panel>
+      ) : null}
       <Panel title={'各模块转化 / 渗透 / 错误（近 ' + days + ' 天）'} extra={data ? <span className="muted">总用户 {fmtInt(data.totalUsers)}</span> : null}>
         {!data ? <div className="loading">加载中…</div> : modules.length === 0 ? <Empty /> : (
           <table className="table">
