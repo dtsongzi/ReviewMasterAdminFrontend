@@ -34,11 +34,30 @@ export interface MemberState {
   plan: string; isPro: boolean; isTrial: boolean; trialUsed: boolean;
   expireAt: number | null; since: number | null; daysLeft: number;
 }
+export interface UsedCode { code: string; plan: string; days: number; usedAt: number | null; }
 export interface UserRow {
   id: string; username: string | null; phone: string | null;
   createdAt: number | null; via: string | null; member: MemberState; lastActive: number | null;
+  banned: boolean; banReason: string | null; bannedAt: number | null; usedCode: UsedCode | null;
 }
 export interface UsersResult { items: UserRow[]; total: number; page: number; size: number; }
+
+export interface MemberCode {
+  code: string; plan: string; days: number; note: string | null;
+  createdAt: number; usedBy: string | null; usedAt: number | null; revokedAt: number | null;
+  status: 'unused' | 'used' | 'revoked';
+  usedUser?: { id: string; username: string | null; phone: string | null } | null;
+}
+export interface CodesResult {
+  items: MemberCode[]; total: number;
+  counts: { all: number; unused: number; used: number; revoked: number };
+  status: string;
+}
+export interface AnalyticsStats {
+  received: number; written: number; dropped: number; flushFails: number;
+  rows: number; lastAt: number | null;
+}
+export interface TopEvent { eventName: string; count: number; users: number; conversions: number; }
 export interface ModuleMetric {
   module: string; views: number; impressions: number; clicks: number; conversions: number;
   errors: number; users: number; ctr: number; conversionRate: number; errorRate: number; penetration: number;
@@ -87,4 +106,31 @@ export const adminApi = {
   business: (days: number) => req<BusinessResult>('/api/admin/metrics/business?days=' + days),
   performance: (days: number) => req<PerformanceResult>('/api/admin/metrics/performance?days=' + days),
   timeseries: (days: number) => req<TimeseriesResult>('/api/admin/timeseries?days=' + days),
+  analyticsStats: () => req<AnalyticsStats>('/api/admin/analytics/stats'),
+  topEvents: (days: number, limit = 20) => req<{ days: number; items: TopEvent[] }>(`/api/admin/metrics/events?days=${days}&limit=${limit}`),
+
+  // 用户封禁 / 解封
+  banUser: (id: string, reason?: string) =>
+    req<{ id: string; banned: boolean }>(`/api/admin/users/${encodeURIComponent(id)}/ban`, {
+      method: 'POST', body: JSON.stringify({ reason: reason || '' }),
+    }),
+  unbanUser: (id: string) =>
+    req<{ id: string; banned: boolean }>(`/api/admin/users/${encodeURIComponent(id)}/unban`, { method: 'POST' }),
+
+  // 会员兑换码
+  memberCodes: (params: { status?: string; limit?: number; offset?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.offset) qs.set('offset', String(params.offset));
+    return req<CodesResult>('/api/admin/member-codes?' + qs.toString());
+  },
+  generateCodes: (params: { plan: string; count: number; note?: string }) =>
+    req<{ items: MemberCode[] }>('/api/admin/member-codes/generate', {
+      method: 'POST', body: JSON.stringify(params),
+    }),
+  revokeCode: (code: string) =>
+    req<{ code: string }>('/api/admin/member-codes/revoke', {
+      method: 'POST', body: JSON.stringify({ code }),
+    }),
 };

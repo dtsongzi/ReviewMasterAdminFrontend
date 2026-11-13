@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { adminApi } from '../api';
-import type { ModuleMetric, Overview, SeriesPoint } from '../api';
+import type { AnalyticsStats, ModuleMetric, Overview, SeriesPoint, TopEvent } from '../api';
 import { DaysTabs, Empty, ErrorMsg, Kpi, Panel } from '../components/ui';
 import { EChart } from '../components/EChart';
 import type { ChartOption } from '../components/EChart';
-import { fmtInt, fmtPct } from '../format';
+import { fmtDateTime, fmtInt, fmtPct } from '../format';
 import { moduleLabel } from '../labels';
 
 export function Dashboard() {
@@ -12,17 +12,27 @@ export function Dashboard() {
   const [ov, setOv] = useState<Overview | null>(null);
   const [series, setSeries] = useState<SeriesPoint[]>([]);
   const [modules, setModules] = useState<ModuleMetric[]>([]);
+  const [stats, setStats] = useState<AnalyticsStats | null>(null);
+  const [events, setEvents] = useState<TopEvent[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let alive = true;
     setError('');
-    Promise.all([adminApi.overview(days), adminApi.timeseries(days), adminApi.business(days)])
-      .then(([o, t, b]) => {
+    Promise.all([
+      adminApi.overview(days),
+      adminApi.timeseries(days),
+      adminApi.business(days),
+      adminApi.analyticsStats().catch(() => null),
+      adminApi.topEvents(days, 15).catch(() => ({ days, items: [] as TopEvent[] })),
+    ])
+      .then(([o, t, b, s, ev]) => {
         if (!alive) return;
         setOv(o);
         setSeries(t.series);
         setModules(b.modules.slice(0, 8));
+        setStats(s);
+        setEvents(ev.items);
       })
       .catch((e) => { if (alive) setError(e instanceof Error ? e.message : String(e)); });
     return () => { alive = false; };
@@ -81,6 +91,42 @@ export function Dashboard() {
                       <td>{fmtInt(m.clicks)}</td>
                       <td>{fmtInt(m.conversions)}</td>
                       <td>{fmtPct(m.conversionRate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
+
+          <Panel title="埋点落库" extra={stats ? <span className="muted">已落库 {fmtInt(stats.rows)} 行</span> : null}>
+            {!stats ? <div className="loading">加载中…</div> : (
+              <div className="kpi-grid">
+                <Kpi label="已落库行数" value={fmtInt(stats.rows)} sub={stats.lastAt ? '最近写入 ' + fmtDateTime(stats.lastAt) : '暂无写入'} />
+                <Kpi label="接收（本次进程）" value={fmtInt(stats.received)} />
+                <Kpi label="已写入" value={fmtInt(stats.written)} accent="#059669" />
+                <Kpi
+                  label="丢弃"
+                  value={fmtInt(stats.dropped)}
+                  accent={stats.dropped ? '#dc2626' : undefined}
+                  sub={stats.flushFails ? '写失败 ' + stats.flushFails + ' 次' : ''}
+                />
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="埋点名 Top 15">
+            {events.length === 0 ? <Empty /> : (
+              <table className="table">
+                <thead>
+                  <tr><th>埋点名（英文）</th><th>次数</th><th>独立用户</th><th>转化</th></tr>
+                </thead>
+                <tbody>
+                  {events.map((e) => (
+                    <tr key={e.eventName}>
+                      <td className="mono">{e.eventName}</td>
+                      <td>{fmtInt(e.count)}</td>
+                      <td>{fmtInt(e.users)}</td>
+                      <td>{fmtInt(e.conversions)}</td>
                     </tr>
                   ))}
                 </tbody>
