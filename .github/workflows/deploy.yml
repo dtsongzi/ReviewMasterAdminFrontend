@@ -29,6 +29,9 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # 后端 API 与主站同源，挂在 /reviewmaster 下（见 .env.production）
+          VITE_API_BASE: '/reviewmaster'
 
       - name: Verify dist assets
         run: |

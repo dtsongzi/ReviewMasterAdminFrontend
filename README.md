@@ -28,6 +28,9 @@ npm run build    # tsc --noEmit && vite build → dist/
 npm run preview  # 本地预览产物
 ```
 
+生产构建通过 `.env.production` 设置 `VITE_API_BASE=/reviewmaster`（与主站同源，后端 API 在
+`/reviewmaster/api/*`）。若部署到独立域名/根路径 `/api`，改该变量即可。
+
 ## 部署（GitHub Actions）
 
 推送到 `develop` 触发 `.github/workflows/deploy.yml`：
