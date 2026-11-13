@@ -1,0 +1,46 @@
+import { NavLink, Outlet } from 'react-router-dom';
+import { useAuth } from '../auth';
+
+const NAV = [
+  { to: '/', label: '数据概览', end: true },
+  { to: '/users', label: '用户管理' },
+  { to: '/business', label: '业务指标' },
+  { to: '/performance', label: '性能指标' },
+];
+
+export function Layout() {
+  const { username, signOut } = useAuth();
+  return (
+    <div className="layout">
+      <aside className="side">
+        <div className="brand">
+          <div className="logo">📊</div>
+          <div>
+            <strong>复盘大师</strong>
+            <span>管理后台</span>
+          </div>
+        </div>
+        <nav className="nav">
+          {NAV.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+              {n.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="side-foot">数据来自埋点系统 · 仅内部使用</div>
+      </aside>
+      <div className="main">
+        <header className="topbar">
+          <div className="topbar-title">运营数据平台</div>
+          <div className="who">
+            <span>{username}</span>
+            <button className="btn-ghost" onClick={signOut}>退出</button>
+          </div>
+        </header>
+        <div className="content">
+          <Outlet />
+        </div>
+      </div>
+    </div>
+  );
+}
