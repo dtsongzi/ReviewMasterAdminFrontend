@@ -167,6 +167,22 @@ button { font-family: inherit; }
 .log-stack summary { cursor: pointer; font-size: 12px; color: var(--muted); }
 .log-stack pre { margin: 8px 0 0; background: #0f172a; color: #e2e8f0; padding: 10px 12px; border-radius: 8px; overflow: auto; font-size: 12px; line-height: 1.5; }
 .auto-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+/* 性能指标：页面维度筛选与对比 */
+.perf-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.page-scope { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.page-scope select {
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: #fff; color: var(--text); font-size: 13px; outline: none; max-width: 220px;
+}
+.page-scope select:focus { border-color: var(--accent); }
+.scope-hint {
+  background: #eef2ff; border: 1px solid #c7d2fe; color: #3730a3;
+  border-radius: 8px; padding: 8px 12px; font-size: 12px; margin-bottom: 14px;
+}
+.table tbody tr.row-link { cursor: pointer; }
+.table tbody tr.row-active { background: #eef2ff; }
+.table tbody tr.row-active:hover { background: #e0e7ff; }
+
 @media (max-width: 820px) { .filters .grow { grid-column: auto; } }
 
 /* 兑换码状态与操作 */

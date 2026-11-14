@@ -81,8 +81,24 @@ export interface ModuleMetric {
 }
 export interface BusinessResult { days: number; totalUsers: number; modules: ModuleMetric[]; }
 export interface ApiMetric { name: string; count: number; avg: number; p50: number; p95: number; max: number; errorRate: number; }
-export interface ScreenMetric { name: string; count: number; avg: number; max: number; }
-export interface PerformanceResult { days: number; api: ApiMetric[]; screen: ScreenMetric[]; }
+export interface ScreenMetric { name: string; count: number; avg: number; p75: number; max: number; }
+export interface PerfStat { count: number; avg: number; p75: number; max: number; }
+/** 单个页面的性能汇总：perf 里没有的指标说明该页暂无样本。 */
+export interface PageMetric {
+  page: string; module: string; views: number; users: number; errors: number;
+  perf: Record<string, PerfStat>;
+  api: { count: number; avg: number; p95: number; errorRate: number };
+  fcpP75: number; lcpP75: number; routeP75: number; apiP95: number; apiErrorRate: number;
+}
+export interface PageOption { page: string; module: string; views: number; }
+export interface PerformanceResult {
+  days: number;
+  page: string;               // 当前筛选的页面，'' 表示全部
+  pages: PageOption[];        // 下拉选项（始终为全部页面）
+  api: ApiMetric[];           // 受 page 过滤
+  screen: ScreenMetric[];     // 受 page 过滤
+  breakdown: PageMetric[];    // 各页面横向对比（不受 page 过滤）
+}
 export interface SeriesPoint { date: string; events: number; users: number; conversions: number; errors: number; }
 export interface TimeseriesResult { days: number; series: SeriesPoint[]; }
 
@@ -121,7 +137,8 @@ export const adminApi = {
     return req<UsersResult>('/api/admin/users?' + qs.toString());
   },
   business: (days: number) => req<BusinessResult>('/api/admin/metrics/business?days=' + days),
-  performance: (days: number) => req<PerformanceResult>('/api/admin/metrics/performance?days=' + days),
+  performance: (days: number, page = '') =>
+    req<PerformanceResult>('/api/admin/metrics/performance?days=' + days + '&page=' + encodeURIComponent(page)),
   timeseries: (days: number) => req<TimeseriesResult>('/api/admin/timeseries?days=' + days),
   analyticsStats: () => req<AnalyticsStats>('/api/admin/analytics/stats'),
   topEvents: (days: number, limit = 20) => req<{ days: number; items: TopEvent[] }>(`/api/admin/metrics/events?days=${days}&limit=${limit}`),
