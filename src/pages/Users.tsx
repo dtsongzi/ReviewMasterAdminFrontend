@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { adminApi } from '../api';
-import type { CodesResult, MemberCode, UserRow, UsersResult } from '../api';
+import type { BatchCodesResult, CodesResult, MemberCode, UserRow, UsersResult } from '../api';
 import { Empty, ErrorMsg, Panel } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtInt } from '../format';
 
 const SIZE = 20;
+const CODE_PAGE_SIZE = 200;   // 与后端单页上限、单次批量上限保持一致
+const MAX_BATCH = 200;
 const CODE_STATUS = [
   { key: 'all', label: '全部' },
   { key: 'unused', label: '未使用' },
@@ -16,6 +18,8 @@ const CODE_STATUS = [
 const STATUS_LABEL: Record<string, string> = {
   unused: '未使用', sold: '已卖出', activated: '已激活', discarded: '已废弃'
 };
+
+function canOperate(status: string) { return status === 'unused' || status === 'sold'; }
 
 export function Users() {
   // 用户列表
@@ -29,6 +33,9 @@ export function Users() {
 
   // 会员兑换码
   const [codeStatus, setCodeStatus] = useState('all');
+  const [codeKw, setCodeKw] = useState('');
+  const [codeQ, setCodeQ] = useState('');
+  const [codePage, setCodePage] = useState(0);
   const [codes, setCodes] = useState<CodesResult | null>(null);
   const [codeVer, setCodeVer] = useState(0);
   const [codeError, setCodeError] = useState('');
@@ -37,6 +44,12 @@ export function Users() {
   const [note, setNote] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<MemberCode[]>([]);
+
+  // 批量操作：选中集合可跨页保留，切换筛选条件时清空
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchBusy, setBatchBusy] = useState('');
+  const [batchResult, setBatchResult] = useState<{ action: string; result: BatchCodesResult } | null>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -50,13 +63,32 @@ export function Users() {
   useEffect(() => {
     let alive = true;
     setCodeError('');
-    adminApi.memberCodes({ status: codeStatus, limit: 200 })
+    adminApi.memberCodes({
+      status: codeStatus, q: codeQ || undefined,
+      limit: CODE_PAGE_SIZE, offset: codePage * CODE_PAGE_SIZE
+    })
       .then((d) => { if (alive) setCodes(d); })
       .catch((e) => { if (alive) setCodeError(e instanceof Error ? e.message : String(e)); });
     return () => { alive = false; };
-  }, [codeStatus, codeVer]);
+  }, [codeStatus, codeQ, codePage, codeVer]);
+
+  useEffect(() => {
+    setSelected(new Set());
+    setBatchResult(null);
+  }, [codeStatus, codeQ]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / SIZE)) : 1;
+  const codeTotalPages = codes ? Math.max(1, Math.ceil(codes.total / CODE_PAGE_SIZE)) : 1;
+  const actionable = useMemo(
+    () => (codes ? codes.items.filter((c) => canOperate(c.status)) : []),
+    [codes]
+  );
+  const allVisibleSelected = actionable.length > 0 && actionable.every((c) => selected.has(c.code));
+  const someVisibleSelected = actionable.some((c) => selected.has(c.code));
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected;
+  }, [someVisibleSelected, allVisibleSelected]);
 
   async function toggleBan(u: UserRow) {
     setError('');
@@ -92,6 +124,46 @@ export function Users() {
     }
   }
 
+  function toggleOne(code: string, on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) {
+        if (next.size >= MAX_BATCH && !next.has(code)) return prev;
+        next.add(code);
+      } else next.delete(code);
+      return next;
+    });
+  }
+
+  function toggleAllVisible(on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      actionable.forEach((c) => {
+        if (on) {
+          if (next.size < MAX_BATCH) next.add(c.code);
+        } else next.delete(c.code);
+      });
+      return next;
+    });
+  }
+
+  function selectGenerated() {
+    if (!generated.length) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      generated.forEach((c) => { if (next.size < MAX_BATCH) next.add(c.code); });
+      return next;
+    });
+  }
+
+  async function copyGenerated() {
+    try {
+      await navigator.clipboard.writeText(generated.map((c) => c.code).join('\n'));
+    } catch {
+      setCodeError('复制失败，请手动选中兑换码复制');
+    }
+  }
+
   async function markSold(code: string) {
     if (!window.confirm(`确认兑换码 ${code} 已卖出？标记后不可再卖，也不可撤回。`)) return;
     setCodeError('');
@@ -104,6 +176,33 @@ export function Users() {
     setCodeError('');
     try { await adminApi.discardCode(code); setCodeVer((v) => v + 1); }
     catch (e) { setCodeError(e instanceof Error ? e.message : String(e)); }
+  }
+
+  async function runBatch(action: 'sell' | 'discard') {
+    const list = Array.from(selected);
+    if (!list.length || batchBusy) return;
+    const label = action === 'sell' ? '批量标记已卖出' : '批量废弃';
+    const preview = list.slice(0, 3).join('、') + (list.length > 3 ? ` 等 ${list.length} 个` : '');
+    const warning = action === 'discard'
+      ? '废弃后不可恢复，也不能再兑换。已激活的兑换码不会被废弃。'
+      : '标记后不可撤销，只有已卖出的码才能被用户兑换；已卖出 / 已激活 / 已废弃的码会跳过。';
+    if (!window.confirm(`${label}：共 ${list.length} 个兑换码\n${preview}\n\n${warning}\n\n确认继续？`)) return;
+    setBatchBusy(action);
+    setCodeError('');
+    setBatchResult(null);
+    try {
+      const result = action === 'sell'
+        ? await adminApi.markSoldBatch(list)
+        : await adminApi.discardCodesBatch(list);
+      setBatchResult({ action: label, result });
+      // 失败的码保留选中，便于修正后直接重试；成功的清掉
+      setSelected(new Set(result.items.filter((x) => !x.ok).map((x) => x.code)));
+      setCodeVer((v) => v + 1);
+    } catch (e) {
+      setCodeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBatchBusy('');
+    }
   }
 
   return (
@@ -187,7 +286,7 @@ export function Users() {
             <input type="number" min={1} max={100} value={count} onChange={(e) => setCount(Number(e.target.value))} />
           </label>
           <label className="grow">
-            备注（可选）
+            备注（可选，建议填批次名便于筛选）
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="如：双十一活动 / 渠道A" maxLength={120} />
           </label>
           <button className="btn-primary" type="submit" disabled={generating}>{generating ? '生成中…' : '生成兑换码'}</button>
@@ -195,36 +294,104 @@ export function Users() {
 
         {generated.length > 0 ? (
           <div className="code-gen">
-            <div className="code-gen-title">本次生成 {generated.length} 个（未使用；卖出后请点「标记已卖出」）</div>
+            <div className="code-gen-title">
+              <span>本次生成 {generated.length} 个（未使用；卖出后请批量标记已卖出）</span>
+              <span className="code-gen-actions">
+                <button className="btn-ghost btn-sm" onClick={selectGenerated}>选中本次生成</button>
+                <button className="btn-ghost btn-sm" onClick={copyGenerated}>复制全部</button>
+              </span>
+            </div>
             <div className="code-list">
               {generated.map((c) => <span key={c.code} className="code-chip">{c.code}</span>)}
             </div>
           </div>
         ) : null}
 
+        <form className="inline-form code-filter" onSubmit={(e) => {
+          e.preventDefault(); setCodePage(0); setCodeQ(codeKw.trim());
+        }}>
+          <label className="grow">
+            搜索兑换码 / 批次备注
+            <input value={codeKw} onChange={(e) => setCodeKw(e.target.value)} placeholder="按生成时的备注筛出整批码，再全选批量操作" maxLength={60} />
+          </label>
+          <button className="btn-ghost" type="submit">搜索</button>
+          {codeQ ? <button className="btn-ghost" type="button" onClick={() => { setCodeKw(''); setCodeQ(''); setCodePage(0); }}>清除</button> : null}
+        </form>
+
         <div className="toolbar" style={{ marginTop: 14 }}>
           <div className="tabs">
             {CODE_STATUS.map((s) => (
-              <button key={s.key} className={'tab' + (codeStatus === s.key ? ' active' : '')} onClick={() => setCodeStatus(s.key)}>
+              <button key={s.key} className={'tab' + (codeStatus === s.key ? ' active' : '')}
+                onClick={() => { setCodeStatus(s.key); setCodePage(0); }}>
                 {s.label}{codes ? ' ' + (codes.counts as Record<string, number>)[s.key] : ''}
               </button>
             ))}
           </div>
         </div>
 
+        <div className="code-batch-bar">
+          <span>已选 <strong>{selected.size}</strong> / 单次最多 {MAX_BATCH} 个</span>
+          <button className="btn-primary btn-sm" disabled={!selected.size || !!batchBusy} onClick={() => runBatch('sell')}>
+            {batchBusy === 'sell' ? '处理中…' : '批量标记已卖出'}
+          </button>
+          <button className="btn-danger btn-sm" disabled={!selected.size || !!batchBusy} onClick={() => runBatch('discard')}>
+            {batchBusy === 'discard' ? '处理中…' : '批量废弃'}
+          </button>
+          <button className="btn-ghost btn-sm" disabled={!selected.size || !!batchBusy} onClick={() => setSelected(new Set())}>清空选择</button>
+          <span className="muted">仅「未使用 / 已卖出」可勾选；跨页保留，切换筛选会清空</span>
+        </div>
+
+        {batchResult ? (
+          <div className={'code-batch-result' + (batchResult.result.summary.failed ? ' warn' : ' ok')}>
+            <div className="code-batch-summary">
+              <span>
+                {batchResult.action}：成功 {batchResult.result.summary.succeeded} / 共 {batchResult.result.summary.requested}
+                {batchResult.result.summary.failed
+                  ? ` · 失败 ${batchResult.result.summary.failed}（已保留选中，可直接重试）`
+                  : ''}
+              </span>
+              <button className="btn-ghost btn-sm" onClick={() => setBatchResult(null)}>关闭</button>
+            </div>
+            {batchResult.result.summary.failed ? (
+              <ul>
+                {batchResult.result.items.filter((x) => !x.ok).map((x) => (
+                  <li key={x.code}><span className="mono">{x.code}</span>：{x.error || x.errorCode || '操作失败'}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+
         <ErrorMsg msg={codeError} />
-        {!codes ? <div className="loading">加载中…</div> : codes.items.length === 0 ? <Empty /> : (
+        {!codes ? <div className="loading">加载中…</div> : codes.items.length === 0 ? <Empty text={codeQ ? '没有匹配的兑换码' : '暂无兑换码'} /> : (
           <div className="table-scroll">
             <table className="table">
               <thead>
                 <tr>
+                  <th className="code-check">
+                    <input
+                      type="checkbox" ref={selectAllRef} checked={allVisibleSelected}
+                      disabled={!actionable.length}
+                      onChange={(e) => toggleAllVisible(e.target.checked)}
+                      aria-label="全选本页可操作的兑换码"
+                    />
+                  </th>
                   <th>兑换码</th><th>套餐</th><th>天数</th><th>状态</th><th>使用人</th>
                   <th>激活时间</th><th>卖出时间</th><th>创建时间</th><th>备注</th><th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {codes.items.map((c) => (
-                  <tr key={c.code}>
+                  <tr key={c.code} className={selected.has(c.code) ? 'row-selected' : ''}>
+                    <td className="code-check">
+                      {canOperate(c.status) ? (
+                        <input
+                          type="checkbox" checked={selected.has(c.code)}
+                          onChange={(e) => toggleOne(c.code, e.target.checked)}
+                          aria-label={`选择 ${c.code}`}
+                        />
+                      ) : <span className="muted">—</span>}
+                    </td>
                     <td className="mono">{c.code}</td>
                     <td>{c.plan}</td>
                     <td>{c.days}</td>
@@ -257,6 +424,13 @@ export function Users() {
             </table>
           </div>
         )}
+        {codes && codeTotalPages > 1 ? (
+          <div className="pager">
+            <button className="btn-ghost" disabled={codePage <= 0} onClick={() => setCodePage((p) => Math.max(0, p - 1))}>上一页</button>
+            <span>第 {codePage + 1} / {codeTotalPages} 页 · 共 {fmtInt(codes.total)} 个</span>
+            <button className="btn-ghost" disabled={codePage >= codeTotalPages - 1} onClick={() => setCodePage((p) => Math.min(codeTotalPages - 1, p + 1))}>下一页</button>
+          </div>
+        ) : null}
       </Panel>
     </div>
   );

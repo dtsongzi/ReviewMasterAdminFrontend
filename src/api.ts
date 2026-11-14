@@ -54,7 +54,16 @@ export interface MemberCode {
 export interface CodesResult {
   items: MemberCode[]; total: number;
   counts: { all: number; unused: number; sold: number; activated: number; discarded: number };
-  status: string;
+  status: string; q: string;
+}
+/** 批量操作逐码结算：一部分码状态已变时，其它码仍可成功。 */
+export interface BatchCodeItem {
+  code: string; ok: boolean; status: string | null;
+  error?: string; errorCode?: string;
+}
+export interface BatchCodesResult {
+  items: BatchCodeItem[];
+  summary: { requested: number; succeeded: number; failed: number };
 }
 export interface AnalyticsStats {
   received: number; written: number; dropped: number; flushFails: number;
@@ -168,9 +177,10 @@ export const adminApi = {
     req<{ id: string; banned: boolean }>(`/api/admin/users/${encodeURIComponent(id)}/unban`, { method: 'POST' }),
 
   // 会员兑换码
-  memberCodes: (params: { status?: string; limit?: number; offset?: number } = {}) => {
+  memberCodes: (params: { status?: string; q?: string; limit?: number; offset?: number } = {}) => {
     const qs = new URLSearchParams();
     if (params.status) qs.set('status', params.status);
+    if (params.q) qs.set('q', params.q);
     if (params.limit) qs.set('limit', String(params.limit));
     if (params.offset) qs.set('offset', String(params.offset));
     return req<CodesResult>('/api/admin/member-codes?' + qs.toString());
@@ -186,6 +196,16 @@ export const adminApi = {
   discardCode: (code: string) =>
     req<{ code: string; status: string }>('/api/admin/member-codes/discard', {
       method: 'POST', body: JSON.stringify({ code }),
+    }),
+
+  // 批量标记已卖出 / 批量废弃：单次最多 200 个，后端逐码返回成败
+  markSoldBatch: (codes: string[]) =>
+    req<BatchCodesResult>('/api/admin/member-codes/sell', {
+      method: 'POST', body: JSON.stringify({ codes }),
+    }),
+  discardCodesBatch: (codes: string[]) =>
+    req<BatchCodesResult>('/api/admin/member-codes/discard', {
+      method: 'POST', body: JSON.stringify({ codes }),
     }),
 
   // 会员模块可见性
