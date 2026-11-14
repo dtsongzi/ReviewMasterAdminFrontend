@@ -189,3 +189,42 @@ button { font-family: inherit; }
 .badge.sold { background: #dbeafe; color: #1e40af; }
 .table-scroll { overflow-x: auto; }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* 会员模块权限：三态配置 + 权益对照预览 */
+.ma-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ma-help { font-size: 13px; line-height: 1.75; color: #334155; }
+.ma-help p { margin: 0 0 6px; }
+.ma-help p.muted { margin-bottom: 0; }
+.ma-notice { border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; line-height: 1.7; }
+.ma-notice.ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+.ma-notice.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+.ma-notice ul { margin: 6px 0 0; padding-left: 20px; }
+.ma-group { margin-bottom: 18px; }
+.ma-group:last-child { margin-bottom: 0; }
+.ma-group-h {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 2px; font-weight: 600; font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+.ma-batch { display: flex; gap: 6px; margin-left: auto; }
+.ma-batch .btn-ghost { padding: 3px 9px; font-size: 12px; }
+.ma-table td:first-child { min-width: 210px; }
+.ma-table td:nth-child(2) { width: 120px; }
+.ma-table td:last-child { width: 300px; }
+.table tbody tr.ma-changed { background: #fffbeb; }
+.ma-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.ma-seg-btn {
+  border: 0; border-right: 1px solid var(--line); background: #fff; color: var(--muted);
+  padding: 6px 12px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.ma-seg-btn:last-child { border-right: 0; }
+.ma-seg-btn:hover { background: #f8fafc; }
+.ma-seg-btn.on { color: #fff; font-weight: 600; }
+.ma-seg-btn.free.on { background: #059669; }
+.ma-seg-btn.pro.on { background: #b45309; }
+.ma-seg-btn.hidden.on { background: #64748b; }
+.ma-preview td:nth-child(2), .ma-preview td:nth-child(3),
+.ma-preview th:nth-child(2), .ma-preview th:nth-child(3) { text-align: center; width: 110px; }
+.ma-preview .ma-preview-g td { background: #f8fafc; font-weight: 600; color: #334155; }
+.ma-yes { color: #059669; font-weight: 800; text-align: center; }
+.ma-no { color: #cbd5e1; text-align: center; }

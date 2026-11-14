@@ -99,6 +99,22 @@ export interface PerformanceResult {
   screen: ScreenMetric[];     // 受 page 过滤
   breakdown: PageMetric[];    // 各页面横向对比（不受 page 过滤）
 }
+// 会员模块可见性：免费可见 / 会员专享 / 暂不开放
+export type ModuleLevel = 'free' | 'pro' | 'hidden';
+export interface ModuleAccessItem {
+  key: string; label: string; group: string; groupKey: string;
+  defaultLevel: ModuleLevel; level: ModuleLevel; apis: string[];
+}
+export interface LevelMeta { id: ModuleLevel; label: string; hint: string; }
+export interface ModuleAccessResult {
+  ok: boolean;
+  levels: Record<string, ModuleLevel>;
+  freeKeys: string[]; proKeys: string[]; hiddenKeys: string[];
+  proApis: string[]; warnings: string[];
+  items: ModuleAccessItem[]; levelMeta: LevelMeta[];
+  updatedAt: number | null; updatedBy: string | null; isDefault: boolean;
+}
+
 export interface SeriesPoint { date: string; events: number; users: number; conversions: number; errors: number; }
 export interface TimeseriesResult { days: number; series: SeriesPoint[]; }
 
@@ -171,6 +187,15 @@ export const adminApi = {
     req<{ code: string; status: string }>('/api/admin/member-codes/discard', {
       method: 'POST', body: JSON.stringify({ code }),
     }),
+
+  // 会员模块可见性
+  moduleAccess: () => req<ModuleAccessResult>('/api/admin/module-access'),
+  saveModuleAccess: (levels: Record<string, ModuleLevel>) =>
+    req<ModuleAccessResult>('/api/admin/module-access', {
+      method: 'PUT', body: JSON.stringify({ levels }),
+    }),
+  resetModuleAccess: () =>
+    req<ModuleAccessResult>('/api/admin/module-access/reset', { method: 'POST', body: '{}' }),
 
   // 线上日志查询
   logs: (params: { date: string; hour?: number | null; level?: string; module?: string; q?: string; limit?: number }) => {

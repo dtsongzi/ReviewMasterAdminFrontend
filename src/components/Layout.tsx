@@ -5,6 +5,7 @@ const NAV = [
   { to: '/', label: '数据概览', end: true },
   { to: '/users', label: '用户管理' },
   { to: '/business', label: '业务指标' },
+  { to: '/modules', label: '会员模块权限' },
   { to: '/performance', label: '性能指标' },
   { to: '/logs', label: '日志查询' },
 ];
