@@ -58,6 +58,20 @@ export interface AnalyticsStats {
   rows: number; lastAt: number | null;
 }
 export interface TopEvent { eventName: string; count: number; users: number; conversions: number; }
+
+export interface LogRecord { ts: string; level: string; module: string; message: string; stack: string; }
+export interface LogsResult {
+  available: boolean;
+  date: string;
+  hour: number | null;
+  files: string[];
+  window: { start: string; end: string } | null;
+  total: number;
+  returned: number;
+  truncated: boolean;
+  records: LogRecord[];
+  message?: string;
+}
 export interface ModuleMetric {
   module: string; views: number; impressions: number; clicks: number; conversions: number;
   errors: number; users: number; ctr: number; conversionRate: number; errorRate: number; penetration: number;
@@ -133,4 +147,15 @@ export const adminApi = {
     req<{ code: string }>('/api/admin/member-codes/revoke', {
       method: 'POST', body: JSON.stringify({ code }),
     }),
+
+  // 线上日志查询
+  logs: (params: { date: string; hour?: number | null; level?: string; module?: string; q?: string; limit?: number }) => {
+    const qs = new URLSearchParams({ date: params.date });
+    if (params.hour != null) qs.set('hour', String(params.hour));
+    if (params.level) qs.set('level', params.level);
+    if (params.module) qs.set('module', params.module);
+    if (params.q) qs.set('q', params.q);
+    if (params.limit) qs.set('limit', String(params.limit));
+    return req<LogsResult>('/api/admin/logs?' + qs.toString());
+  },
 };

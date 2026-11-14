@@ -6,6 +6,7 @@ const NAV = [
   { to: '/users', label: '用户管理' },
   { to: '/business', label: '业务指标' },
   { to: '/performance', label: '性能指标' },
+  { to: '/logs', label: '日志查询' },
 ];
 
 export function Layout() {
