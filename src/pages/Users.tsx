@@ -6,8 +6,10 @@ import { Empty, ErrorMsg, Panel } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtInt } from '../format';
 
 const SIZE = 20;
-const CODE_PAGE_SIZE = 200;   // 与后端单页上限、单次批量上限保持一致
-const MAX_BATCH = 200;
+const CODE_PAGE_SIZES = [20, 50, 100, 200];
+const DEFAULT_CODE_PAGE_SIZE = 20;
+const GEN_PREVIEW = 20;       // 本次生成结果默认只铺前 20 个，其余可展开
+const MAX_BATCH = 200;        // 单次批量操作上限（可跨页累计选择）
 const CODE_STATUS = [
   { key: 'all', label: '全部' },
   { key: 'unused', label: '未使用' },
@@ -36,6 +38,7 @@ export function Users() {
   const [codeKw, setCodeKw] = useState('');
   const [codeQ, setCodeQ] = useState('');
   const [codePage, setCodePage] = useState(0);
+  const [codeSize, setCodeSize] = useState(DEFAULT_CODE_PAGE_SIZE);
   const [codes, setCodes] = useState<CodesResult | null>(null);
   const [codeVer, setCodeVer] = useState(0);
   const [codeError, setCodeError] = useState('');
@@ -44,8 +47,9 @@ export function Users() {
   const [note, setNote] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<MemberCode[]>([]);
+  const [genExpanded, setGenExpanded] = useState(false);
 
-  // 批量操作：选中集合可跨页保留，切换筛选条件时清空
+  // 批量操作：选中集合可跨页保留，切换筛选条件 / 每页条数时清空
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchBusy, setBatchBusy] = useState('');
   const [batchResult, setBatchResult] = useState<{ action: string; result: BatchCodesResult } | null>(null);
@@ -65,20 +69,27 @@ export function Users() {
     setCodeError('');
     adminApi.memberCodes({
       status: codeStatus, q: codeQ || undefined,
-      limit: CODE_PAGE_SIZE, offset: codePage * CODE_PAGE_SIZE
+      limit: codeSize, offset: codePage * codeSize
     })
       .then((d) => { if (alive) setCodes(d); })
       .catch((e) => { if (alive) setCodeError(e instanceof Error ? e.message : String(e)); });
     return () => { alive = false; };
-  }, [codeStatus, codeQ, codePage, codeVer]);
+  }, [codeStatus, codeQ, codePage, codeSize, codeVer]);
 
   useEffect(() => {
     setSelected(new Set());
     setBatchResult(null);
-  }, [codeStatus, codeQ]);
+  }, [codeStatus, codeQ, codeSize]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / SIZE)) : 1;
-  const codeTotalPages = codes ? Math.max(1, Math.ceil(codes.total / CODE_PAGE_SIZE)) : 1;
+  const codeTotalPages = codes ? Math.max(1, Math.ceil(codes.total / codeSize)) : 1;
+
+  // 筛选/批量操作后总数可能变小，当前页码越界会显示空白页，自动回退到最后一页。
+  useEffect(() => {
+    if (codes && codePage > 0 && codePage >= codeTotalPages) {
+      setCodePage(Math.max(0, codeTotalPages - 1));
+    }
+  }, [codes, codePage, codeTotalPages]);
   const actionable = useMemo(
     () => (codes ? codes.items.filter((c) => canOperate(c.status)) : []),
     [codes]
@@ -115,7 +126,9 @@ export function Users() {
     try {
       const r = await adminApi.generateCodes({ plan, count: Math.max(1, Math.min(100, Number(count) || 1)), note: note.trim() || undefined });
       setGenerated(r.items);
+      setGenExpanded(false);
       setNote('');
+      setCodePage(0);
       setCodeVer((v) => v + 1);
     } catch (ex) {
       setCodeError(ex instanceof Error ? ex.message : String(ex));
@@ -302,8 +315,14 @@ export function Users() {
               </span>
             </div>
             <div className="code-list">
-              {generated.map((c) => <span key={c.code} className="code-chip">{c.code}</span>)}
+              {(genExpanded ? generated : generated.slice(0, GEN_PREVIEW))
+                .map((c) => <span key={c.code} className="code-chip">{c.code}</span>)}
             </div>
+            {generated.length > GEN_PREVIEW ? (
+              <button className="btn-ghost btn-sm code-gen-more" onClick={() => setGenExpanded((v) => !v)}>
+                {genExpanded ? '收起' : `展开剩余 ${generated.length - GEN_PREVIEW} 个`}
+              </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -338,7 +357,7 @@ export function Users() {
             {batchBusy === 'discard' ? '处理中…' : '批量废弃'}
           </button>
           <button className="btn-ghost btn-sm" disabled={!selected.size || !!batchBusy} onClick={() => setSelected(new Set())}>清空选择</button>
-          <span className="muted">仅「未使用 / 已卖出」可勾选；跨页保留，切换筛选会清空</span>
+          <span className="muted">仅「未使用 / 已卖出」可勾选；翻页可累计选择，切换筛选或每页条数会清空</span>
         </div>
 
         {batchResult ? (
@@ -424,11 +443,28 @@ export function Users() {
             </table>
           </div>
         )}
-        {codes && codeTotalPages > 1 ? (
-          <div className="pager">
-            <button className="btn-ghost" disabled={codePage <= 0} onClick={() => setCodePage((p) => Math.max(0, p - 1))}>上一页</button>
-            <span>第 {codePage + 1} / {codeTotalPages} 页 · 共 {fmtInt(codes.total)} 个</span>
-            <button className="btn-ghost" disabled={codePage >= codeTotalPages - 1} onClick={() => setCodePage((p) => Math.min(codeTotalPages - 1, p + 1))}>下一页</button>
+        {codes ? (
+          <div className="pager code-pager">
+            <div className="pager-left">
+              <label className="pager-size">
+                每页
+                <select
+                  value={codeSize}
+                  onChange={(e) => { setCodeSize(Number(e.target.value)); setCodePage(0); }}
+                  aria-label="每页显示条数"
+                >
+                  {CODE_PAGE_SIZES.map((n) => <option key={n} value={n}>{n} 条</option>)}
+                </select>
+              </label>
+              <span>共 {fmtInt(codes.total)} 个 · 当前显示 {codes.items.length} 个</span>
+            </div>
+            <div className="pager-right">
+              <span>第 {codePage + 1} / {codeTotalPages} 页</span>
+              <button className="btn-ghost" disabled={codePage <= 0} onClick={() => setCodePage(0)}>首页</button>
+              <button className="btn-ghost" disabled={codePage <= 0} onClick={() => setCodePage((p) => Math.max(0, p - 1))}>上一页</button>
+              <button className="btn-ghost" disabled={codePage >= codeTotalPages - 1} onClick={() => setCodePage((p) => Math.min(codeTotalPages - 1, p + 1))}>下一页</button>
+              <button className="btn-ghost" disabled={codePage >= codeTotalPages - 1} onClick={() => setCodePage(codeTotalPages - 1)}>末页</button>
+            </div>
           </div>
         ) : null}
       </Panel>

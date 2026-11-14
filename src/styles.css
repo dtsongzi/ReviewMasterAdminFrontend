@@ -248,3 +248,16 @@ button { font-family: inherit; }
 .code-batch-result.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
 .code-batch-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .code-batch-result ul { margin: 6px 0 0; padding-left: 20px; max-height: 160px; overflow-y: auto; }
+
+/* 兑换码列表分页：常驻显示，含每页条数与首/末页 */
+.code-pager {
+  justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--grid);
+}
+.pager-left, .pager-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pager-size { display: flex; align-items: center; gap: 6px; }
+.pager-size select {
+  padding: 4px 8px; font-size: 12.5px; border: 1px solid var(--line);
+  border-radius: 6px; background: #fff; color: var(--text);
+}
+.code-gen-more { margin-top: 10px; }
