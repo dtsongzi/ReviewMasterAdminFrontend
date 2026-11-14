@@ -11,9 +11,9 @@ const SCREEN_LABELS: Record<string, string> = {
   ttfb: 'TTFB 首字节',
   fcp: 'FCP 首次内容绘制',
   lcp: 'LCP 最大内容绘制',
-  dom: 'DOMContentLoaded',
+  dom: 'DOM 解析完成',
   load: '页面加载完成',
-  route: 'SPA 页面切换',
+  route: '页面切换耗时',
 };
 
 /** 页面展示名优先用主站导航中文名，未登记时退回路由路径。 */
@@ -62,14 +62,14 @@ export function Performance() {
         axisLine: { lineStyle: { color: '#e2e8f0' } },
       },
       series: [{
-        name: 'P95', type: 'bar', data: top.map((a) => a.p95), barWidth: 14,
+        name: '接口 P95', type: 'bar', data: top.map((a) => a.p95), barWidth: 14,
         itemStyle: { borderRadius: [0, 4, 4, 0] },
         label: { show: true, position: 'right', formatter: '{c} ms', color: '#64748b' },
       }],
     };
   }, [data]);
 
-  // 各页面横向对比：按浏览量取前 10，比较 LCP 与 SPA 切换耗时。
+  // 各页面横向对比：按浏览量取前 10，比较最大内容绘制与单页应用切页耗时。
   const pageChart = useMemo<{ option: ChartOption; rows: PageMetric[] }>(() => {
     const rows = [...(data?.breakdown || [])]
       .filter((p) => p.lcpP75 > 0 || p.routeP75 > 0)
@@ -80,7 +80,7 @@ export function Performance() {
       rows,
       option: {
         color: ['#b45309', '#4f46e5'],
-        legend: { data: ['LCP P75', '切换 P75'], top: 0, textStyle: { color: '#64748b' } },
+        legend: { data: ['最大内容绘制 P75', '页面切换 P75'], top: 0, textStyle: { color: '#64748b' } },
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         grid: { left: 130, right: 70, top: 30, bottom: 24 },
         xAxis: {
@@ -93,8 +93,8 @@ export function Performance() {
           axisLine: { lineStyle: { color: '#e2e8f0' } },
         },
         series: [
-          { name: 'LCP P75', type: 'bar', data: rows.map((p) => p.lcpP75), barMaxWidth: 12, itemStyle: { borderRadius: [0, 4, 4, 0] } },
-          { name: '切换 P75', type: 'bar', data: rows.map((p) => p.routeP75), barMaxWidth: 12, itemStyle: { borderRadius: [0, 4, 4, 0] } },
+          { name: '最大内容绘制 P75', type: 'bar', data: rows.map((p) => p.lcpP75), barMaxWidth: 12, itemStyle: { borderRadius: [0, 4, 4, 0] } },
+          { name: '页面切换 P75', type: 'bar', data: rows.map((p) => p.routeP75), barMaxWidth: 12, itemStyle: { borderRadius: [0, 4, 4, 0] } },
         ],
       } as ChartOption,
     };
@@ -145,7 +145,7 @@ export function Performance() {
                 <thead>
                   <tr>
                     <th>页面</th><th>浏览量</th><th>用户</th>
-                    <th>FCP P75</th><th>LCP P75</th><th>切换 P75</th>
+                    <th title="首次内容绘制 P75">首次绘制 P75</th><th title="最大内容绘制 P75">最大绘制 P75</th><th>页面切换 P75</th>
                     <th>接口 P95</th><th>接口错误率</th><th>前端异常</th>
                   </tr>
                 </thead>
@@ -175,7 +175,7 @@ export function Performance() {
               </table>
             </div>
             <div className="muted" style={{ marginTop: 10 }}>
-              点击任意一行可切换上方明细的页面范围。FCP / LCP 在整页加载时采集，「切换」为 SPA 路由切换耗时；
+              点击任意一行可切换上方明细的页面范围。首次内容绘制（FCP）与最大内容绘制（LCP）在整页加载时采集，「切换」为单页应用的路由切换耗时；
               「—」表示该页暂无样本。页面维度性能数据随新版前端埋点开始积累。
             </div>
           </>
@@ -183,13 +183,13 @@ export function Performance() {
       </Panel>
 
       {data && pageChart.rows.length > 0 ? (
-        <Panel title="页面首屏 / 切换 P75 对比（按浏览量 Top 10）">
+        <Panel title="页面首屏 / 切换 P75 对比（按浏览量前 10）">
           <EChart option={pageChart.option} height={Math.max(220, Math.min(420, pageChart.rows.length * 34 + 60))} />
         </Panel>
       ) : null}
 
       {data && data.api.length > 0 ? (
-        <Panel title={'接口 P95 耗时 Top 10 · ' + scopeLabel}>
+        <Panel title={'接口 P95 耗时 · 前 10 · ' + scopeLabel}>
           <EChart option={barOption} height={Math.max(220, Math.min(400, data.api.length * 26 + 40))} />
         </Panel>
       ) : null}

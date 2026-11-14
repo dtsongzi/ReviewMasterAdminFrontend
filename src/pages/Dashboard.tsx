@@ -77,7 +77,7 @@ export function Dashboard() {
             {series.length === 0 ? <Empty /> : <EChart option={lineOption} height={260} />}
           </Panel>
 
-          <Panel title="模块表现 Top 8">
+          <Panel title="模块表现 · 前 8">
             {modules.length === 0 ? <Empty /> : (
               <table className="table">
                 <thead>
@@ -114,7 +114,7 @@ export function Dashboard() {
             )}
           </Panel>
 
-          <Panel title="埋点名 Top 15">
+          <Panel title="埋点名 · 前 15">
             {events.length === 0 ? <Empty /> : (
               <table className="table">
                 <thead>
