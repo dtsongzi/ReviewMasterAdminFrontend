@@ -9,10 +9,13 @@ const SIZE = 20;
 const CODE_STATUS = [
   { key: 'all', label: '全部' },
   { key: 'unused', label: '未使用' },
-  { key: 'used', label: '已使用' },
-  { key: 'revoked', label: '已作废' },
+  { key: 'sold', label: '已卖出' },
+  { key: 'activated', label: '已激活' },
+  { key: 'discarded', label: '已废弃' },
 ];
-const STATUS_LABEL: Record<string, string> = { unused: '未使用', used: '已使用', revoked: '已作废' };
+const STATUS_LABEL: Record<string, string> = {
+  unused: '未使用', sold: '已卖出', activated: '已激活', discarded: '已废弃'
+};
 
 export function Users() {
   // 用户列表
@@ -89,10 +92,17 @@ export function Users() {
     }
   }
 
-  async function revoke(code: string) {
-    if (!window.confirm(`确定作废兑换码 ${code}？作废后不可使用。`)) return;
+  async function markSold(code: string) {
+    if (!window.confirm(`确认兑换码 ${code} 已卖出？标记后不可再卖，也不可撤回。`)) return;
     setCodeError('');
-    try { await adminApi.revokeCode(code); setCodeVer((v) => v + 1); }
+    try { await adminApi.markSold(code); setCodeVer((v) => v + 1); }
+    catch (e) { setCodeError(e instanceof Error ? e.message : String(e)); }
+  }
+
+  async function discard(code: string) {
+    if (!window.confirm(`确定废弃兑换码 ${code}？废弃后不可使用。`)) return;
+    setCodeError('');
+    try { await adminApi.discardCode(code); setCodeVer((v) => v + 1); }
     catch (e) { setCodeError(e instanceof Error ? e.message : String(e)); }
   }
 
@@ -161,7 +171,7 @@ export function Users() {
       {/* ---------- 会员兑换码（独立区域） ---------- */}
       <Panel
         title="会员兑换码"
-        extra={codes ? <span className="muted">共 {fmtInt(codes.counts.all)} · 未用 {codes.counts.unused} · 已用 {codes.counts.used} · 作废 {codes.counts.revoked}</span> : null}
+        extra={codes ? <span className="muted">共 {fmtInt(codes.counts.all)} · 未用 {codes.counts.unused} · 已卖 {codes.counts.sold} · 已激活 {codes.counts.activated} · 已废弃 {codes.counts.discarded}</span> : null}
       >
         <form className="inline-form" onSubmit={generate}>
           <label>
@@ -185,7 +195,7 @@ export function Users() {
 
         {generated.length > 0 ? (
           <div className="code-gen">
-            <div className="code-gen-title">本次生成 {generated.length} 个（已保存，可复制发给用户）</div>
+            <div className="code-gen-title">本次生成 {generated.length} 个（未使用；卖出后请点「标记已卖出」）</div>
             <div className="code-list">
               {generated.map((c) => <span key={c.code} className="code-chip">{c.code}</span>)}
             </div>
@@ -204,34 +214,48 @@ export function Users() {
 
         <ErrorMsg msg={codeError} />
         {!codes ? <div className="loading">加载中…</div> : codes.items.length === 0 ? <Empty /> : (
-          <table className="table">
-            <thead>
-              <tr><th>兑换码</th><th>套餐</th><th>天数</th><th>状态</th><th>使用人</th><th>使用时间</th><th>创建时间</th><th>备注</th><th>操作</th></tr>
-            </thead>
-            <tbody>
-              {codes.items.map((c) => (
-                <tr key={c.code}>
-                  <td className="mono">{c.code}</td>
-                  <td>{c.plan}</td>
-                  <td>{c.days}</td>
-                  <td>
-                    <span className={'badge ' + (c.status === 'used' ? 'pro' : c.status === 'revoked' ? 'banned' : 'free')}>
-                      {STATUS_LABEL[c.status] || c.status}
-                    </span>
-                  </td>
-                  <td>{c.usedUser ? (c.usedUser.username || c.usedUser.phone || c.usedUser.id) : '—'}</td>
-                  <td>{fmtDateTime(c.usedAt)}</td>
-                  <td>{fmtDateTime(c.createdAt)}</td>
-                  <td className="muted">{c.note || '—'}</td>
-                  <td>
-                    {c.status === 'unused'
-                      ? <button className="btn-danger btn-sm" onClick={() => revoke(c.code)}>作废</button>
-                      : <span className="muted">—</span>}
-                  </td>
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>兑换码</th><th>套餐</th><th>天数</th><th>状态</th><th>使用人</th>
+                  <th>激活时间</th><th>卖出时间</th><th>创建时间</th><th>备注</th><th>操作</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {codes.items.map((c) => (
+                  <tr key={c.code}>
+                    <td className="mono">{c.code}</td>
+                    <td>{c.plan}</td>
+                    <td>{c.days}</td>
+                    <td>
+                      <span className={'badge ' + (
+                        c.status === 'activated' ? 'ok'
+                          : c.status === 'sold' ? 'sold'
+                            : c.status === 'discarded' ? 'banned' : 'free')}>
+                        {STATUS_LABEL[c.status] || c.status}
+                      </span>
+                    </td>
+                    <td>{c.usedUser ? (c.usedUser.username || c.usedUser.phone || c.usedUser.id) : '—'}</td>
+                    <td>{fmtDateTime(c.activatedAt || c.usedAt)}</td>
+                    <td>{fmtDateTime(c.soldAt)}</td>
+                    <td>{fmtDateTime(c.createdAt)}</td>
+                    <td className="muted">{c.note || '—'}</td>
+                    <td className="actions">
+                      {c.status === 'unused' ? (
+                        <>
+                          <button className="btn-primary btn-sm" onClick={() => markSold(c.code)}>标记已卖出</button>
+                          <button className="btn-danger btn-sm" onClick={() => discard(c.code)}>废弃</button>
+                        </>
+                      ) : c.status === 'sold' ? (
+                        <button className="btn-danger btn-sm" onClick={() => discard(c.code)}>废弃</button>
+                      ) : <span className="muted">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
     </div>

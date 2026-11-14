@@ -44,13 +44,16 @@ export interface UsersResult { items: UserRow[]; total: number; page: number; si
 
 export interface MemberCode {
   code: string; plan: string; days: number; note: string | null;
-  createdAt: number; usedBy: string | null; usedAt: number | null; revokedAt: number | null;
-  status: 'unused' | 'used' | 'revoked';
+  createdAt: number;
+  soldAt: number | null; soldBy: string | null;
+  usedBy: string | null; usedAt: number | null; activatedAt: number | null;
+  revokedAt: number | null; discardedAt: number | null; discardedBy: string | null;
+  status: 'unused' | 'sold' | 'activated' | 'discarded';
   usedUser?: { id: string; username: string | null; phone: string | null } | null;
 }
 export interface CodesResult {
   items: MemberCode[]; total: number;
-  counts: { all: number; unused: number; used: number; revoked: number };
+  counts: { all: number; unused: number; sold: number; activated: number; discarded: number };
   status: string;
 }
 export interface AnalyticsStats {
@@ -143,8 +146,12 @@ export const adminApi = {
     req<{ items: MemberCode[] }>('/api/admin/member-codes/generate', {
       method: 'POST', body: JSON.stringify(params),
     }),
-  revokeCode: (code: string) =>
-    req<{ code: string }>('/api/admin/member-codes/revoke', {
+  markSold: (code: string) =>
+    req<{ code: string; status: string }>('/api/admin/member-codes/sell', {
+      method: 'POST', body: JSON.stringify({ code }),
+    }),
+  discardCode: (code: string) =>
+    req<{ code: string; status: string }>('/api/admin/member-codes/discard', {
       method: 'POST', body: JSON.stringify({ code }),
     }),
 
