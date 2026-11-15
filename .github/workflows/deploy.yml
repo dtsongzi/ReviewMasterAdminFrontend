@@ -31,6 +31,8 @@ jobs:
 
       - name: TypeScript 类型检查
         run: npm run typecheck
+      - name: Unit tests（接口前缀守卫）
+        run: npm test
 
       - name: Build
         run: npm run build

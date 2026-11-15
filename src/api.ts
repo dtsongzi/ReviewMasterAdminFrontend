@@ -2,7 +2,10 @@
 
 const TOKEN_KEY = 'rm_admin_token';
 const USER_KEY = 'rm_admin_user';
-const BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/+$/, '');
+// 所有接口统一带 /reviewmaster 前缀（公网根 /api/* 不可达）。
+// 以前只在生产构建由 .env.production 注入，本地裸 /api/* 与线上口径不一致；
+// 现在默认就有前缀，Vite 代理原样转发到本机后端，由后端剥前缀。
+const BASE = (import.meta.env.VITE_API_BASE || '/reviewmaster').replace(/\/+$/, '');
 
 export class ApiError extends Error {
   readonly code?: string;

@@ -31,7 +31,7 @@ React + TypeScript + Vite + **ECharts**（按需引入）。HashRouter，可部�
 
 ```bash
 npm install
-npm run dev      # http://localhost:5174，/api 代理到 http://localhost:3002
+npm run dev      # http://localhost:5174，/reviewmaster/api 代理到 http://localhost:3002
 ```
 
 后端需配置 `ADMIN_USERNAME` / `ADMIN_PASSWORD`（开发未配置时默认 admin / admin123，生产必须显式配置）。
@@ -43,14 +43,16 @@ npm run build    # tsc --noEmit && vite build → dist/
 npm run preview  # 本地预览产物
 ```
 
-生产构建通过 `.env.production` 设置 `VITE_API_BASE=/reviewmaster`（与主站同源，后端 API 在
-`/reviewmaster/api/*`）。若部署到独立域名/根路径 `/api`，改该变量即可。
+**所有接口请求统一带 `/reviewmaster` 前缀**：`src/api.ts` 的 `BASE` 默认就是 `/reviewmaster`
+（`.env.production` 只是显式重申），公网根路径 `/api/*` 不可达。本地与生产口径一致，
+Vite 代理原样转发，后端 `lib/api-prefix.js` 剥掉前缀后匹配既有 `/api/*` 路由表。
+所有后台请求都经 `req()`，没有绕过前缀的裸 `fetch`。若部署到独立域名，改 `VITE_API_BASE` 即可。
 
 ## 部署（GitHub Actions）
 
 推送到 `develop` 触发 `.github/workflows/deploy.yml`：
 
-1. `npm ci` → `npm run typecheck` → `npm run build`
+1. `npm ci` → `npm run typecheck` → `npm test`（接口前缀静态守卫）→ `npm run build`
 2. 校验 `dist/` 资源、生成 `MANIFEST.sha256`
 3. scp 到服务器 `/tmp`，远端校验完整性后**原子替换** `/opt/ReviewMasterAdmin`
 
