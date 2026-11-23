@@ -49,6 +49,12 @@ export function Courses() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [openId, setOpenId] = useState('');
+  // 网页内预览：封面看大图、视频用内嵌播放器（不再新标签页打开）
+  const [preview, setPreview] = useState<
+    { kind: 'cover'; sid: string; title: string; v: number }
+    | { kind: 'video'; lessonId: string; title: string; cover: boolean }
+    | null
+  >(null);
   const [upload, setUpload] = useState<{ sid: string; pct: number; name: string } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const coverRef = useRef<HTMLInputElement | null>(null);
@@ -197,6 +203,16 @@ export function Courses() {
             {list.map((s) => (
               <div className="course-item" key={s.id}>
                 <div className="course-head">
+                  <button
+                    className="course-thumb"
+                    title={s.cover ? '查看封面大图' : '暂无封面'}
+                    onClick={() => { if (s.cover) setPreview({ kind: 'cover', sid: s.id, title: s.title, v: s.updatedAt }); }}
+                  >
+                    {s.cover
+                      // 换封面后 updatedAt 变化，拼上版本参数避免浏览器缓存旧图
+                      ? <img src={adminApi.coverUrl(s.id) + '&v=' + s.updatedAt} alt={s.title} loading="lazy" />
+                      : <span>无封面</span>}
+                  </button>
                   <button className="course-toggle" onClick={() => setOpenId(openId === s.id ? '' : s.id)}>
                     {openId === s.id ? '▾' : '▸'} {s.title}
                   </button>
@@ -238,7 +254,7 @@ export function Courses() {
                               <td><span className="badge">{l.storage === 'oss' ? 'OSS' : '本地'}</span></td>
                               <td>{fmtTime(l.createdAt)}</td>
                               <td className="actions">
-                                <a className="btn-ghost btn-sm" href={adminApi.videoUrl(l.id)} target="_blank" rel="noreferrer">预览</a>
+                                <button className="btn-ghost btn-sm" onClick={() => setPreview({ kind: 'video', lessonId: l.id, title: l.title, cover: false })}>预览</button>
                                 <button className="btn-ghost btn-sm" onClick={() => renameLesson(l.id, l.title)}>改名</button>
                                 <button className="btn-ghost btn-sm" disabled={i === 0} onClick={() => moveLesson(s, i, -1)}>上移</button>
                                 <button className="btn-ghost btn-sm" disabled={i === s.lessonCount - 1} onClick={() => moveLesson(s, i, 1)}>下移</button>
@@ -256,6 +272,38 @@ export function Courses() {
           </div>
         )}
       </Panel>
+
+      {preview ? (
+        <div className="modal-mask" onClick={() => setPreview(null)}>
+          <div
+            className={'modal preview-modal' + (preview.kind === 'video' ? ' preview-video' : ' preview-cover')}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-h">
+              <h3>{preview.title}</h3>
+              <button className="btn-ghost btn-sm" onClick={() => setPreview(null)}>关闭</button>
+            </div>
+            <div className="modal-b">
+              {preview.kind === 'video' ? (
+                <video
+                  className="preview-player"
+                  controls
+                  autoPlay
+                  playsInline
+                  // 走本服务的 /api/courses/video/:id，由服务端 302 到 OSS 预签名 URL
+                  src={adminApi.videoUrl(preview.lessonId)}
+                />
+              ) : (
+                <img
+                  className="preview-image"
+                  alt={preview.title}
+                  src={adminApi.coverUrl(preview.sid) + '&v=' + preview.v}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {draft ? (
         <div className="modal-mask">
