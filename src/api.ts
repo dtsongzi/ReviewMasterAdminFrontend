@@ -127,6 +127,26 @@ export interface ModuleAccessResult {
   updatedAt: number | null; updatedBy: string | null; isDefault: boolean;
 }
 
+// ---------- 会员课程 ----------
+export interface CourseLesson {
+  id: string; title: string; mime: string; size: number; createdAt: number;
+  storage: 'oss' | 'local';
+}
+export interface CourseSeries {
+  id: string; title: string; desc: string;
+  teacher: string; teacherTitle: string; teacherBio: string;
+  intro: Record<string, string>;
+  cover: boolean; coverMime: string; coverStorage: 'oss' | 'local';
+  createdAt: number; updatedAt: number;
+  lessons: CourseLesson[]; lessonCount: number; totalSize: number;
+}
+export interface CoursesResult {
+  series: CourseSeries[];
+  admin: boolean;
+  progress: Record<string, { lessonId: string; title: string; at: number }>;
+  storage: { enabled: boolean; prefix: string; maxSize: number; uploadTtl: number; playTtl: number; corsHint: string };
+}
+
 export interface SeriesPoint { date: string; events: number; users: number; conversions: number; errors: number; }
 export interface TimeseriesResult { days: number; series: SeriesPoint[]; }
 
@@ -230,4 +250,56 @@ export const adminApi = {
     if (params.limit) qs.set('limit', String(params.limit));
     return req<LogsResult>('/api/admin/logs?' + qs.toString());
   },
+
+  // ---------- 会员课程（管理后台直接读写 /api/courses） ----------
+  // 后台用 role=admin 令牌，后端对 /api/courses 前缀放行管理员，无需站长本人账号。
+  courses: () => req<CoursesResult>('/api/courses'),
+  createSeries: (body: { title: string; desc?: string; teacher?: string; teacherTitle?: string; teacherBio?: string; intro?: Record<string, string> }) =>
+    req<{ ok: boolean; series: CourseSeries }>('/api/courses/series', { method: 'POST', body: JSON.stringify(body) }),
+  updateSeries: (id: string, body: Record<string, unknown>) =>
+    req<{ ok: boolean; series: CourseSeries }>('/api/courses/series/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }),
+  deleteSeries: (id: string) =>
+    req<{ ok: boolean }>('/api/courses/series/' + encodeURIComponent(id), { method: 'DELETE' }),
+  updateLesson: (id: string, body: { title?: string; seq?: number }) =>
+    req<{ ok: boolean }>('/api/courses/lesson/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }),
+  deleteLesson: (id: string) =>
+    req<{ ok: boolean }>('/api/courses/lesson/' + encodeURIComponent(id), { method: 'DELETE' }),
+
+  // 二进制上传：XHR 以便拿到进度；经本服务中转，由服务端决定落本地还是转存 OSS
+  uploadLesson: (sid: string, file: File, title: string, onProgress?: (pct: number) => void) =>
+    uploadBinary('/api/courses/series/' + encodeURIComponent(sid) + '/lesson?title=' + encodeURIComponent(title),
+      file, file.type || 'application/octet-stream', onProgress),
+  uploadCover: (sid: string, file: File) =>
+    uploadBinary('/api/courses/series/' + encodeURIComponent(sid) + '/cover',
+      file, file.type || 'image/jpeg'),
+
+  // <video>/<img> 带不了自定义头，播放地址用 ?tk= 传管理员令牌
+  videoUrl: (lessonId: string) =>
+    BASE + '/api/courses/video/' + encodeURIComponent(lessonId) + '?tk=' + encodeURIComponent(getToken() || ''),
+  coverUrl: (sid: string) =>
+    BASE + '/api/courses/cover/' + encodeURIComponent(sid) + '?tk=' + encodeURIComponent(getToken() || ''),
 };
+
+/** 二进制上传：不经 JSON 层，直接 POST 原始字节，支持进度回调。 */
+function uploadBinary(path: string, file: Blob, contentType: string, onProgress?: (pct: number) => void): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', BASE + path);
+    const token = getToken();
+    if (token) x.setRequestHeader('X-Fp-Token', token);
+    x.setRequestHeader('Content-Type', contentType);
+    if (onProgress) {
+      x.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+      };
+    }
+    x.onload = () => {
+      let d: { ok?: boolean; error?: string } = {};
+      try { d = JSON.parse(x.responseText); } catch { /* 非 JSON */ }
+      if (x.status >= 200 && x.status < 300 && d.ok) return resolve({ ok: true });
+      reject(new ApiError(d.error || ('上传失败 ' + x.status)));
+    };
+    x.onerror = () => reject(new ApiError('上传网络中断'));
+    x.send(file);
+  });
+}

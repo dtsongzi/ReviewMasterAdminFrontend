@@ -8,6 +8,7 @@ import { Business } from './pages/Business';
 import { Performance } from './pages/Performance';
 import { Logs } from './pages/Logs';
 import { ModuleAccess } from './pages/ModuleAccess';
+import { Courses } from './pages/Courses';
 
 function Guard() {
   const { token, checking } = useAuth();
@@ -27,6 +28,7 @@ export function App() {
             <Route path="users" element={<Users />} />
             <Route path="business" element={<Business />} />
             <Route path="modules" element={<ModuleAccess />} />
+            <Route path="courses" element={<Courses />} />
             <Route path="performance" element={<Performance />} />
             <Route path="logs" element={<Logs />} />
             <Route path="*" element={<Navigate to="/" replace />} />
