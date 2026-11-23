@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { adminApi } from '../api';
-import type { CourseSeries } from '../api';
+import type { CourseSeries, CourseStorage } from '../api';
 import { Empty, ErrorMsg, Kpi, Panel } from '../components/ui';
 
 // 会员课程管理：课程（系列）增删改 + 课时上传/排序/删除 + 封面上传 + 预览播放。
@@ -43,7 +43,10 @@ const emptyDraft = (): Draft => ({
 
 export function Courses() {
   const [list, setList] = useState<CourseSeries[]>([]);
-  const [storage, setStorage] = useState<{ enabled: boolean; maxSize: number } | null>(null);
+  const [storage, setStorage] = useState<CourseStorage | null>(null);
+  // 上传通道：走 OSS 内网端点（同地域），默认 true，可在此页随时切换
+  const [ossInternal, setOssInternal] = useState(true);
+  const [savingInternal, setSavingInternal] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -64,7 +67,11 @@ export function Courses() {
   const load = () => {
     setError('');
     return adminApi.courses()
-      .then((d) => { setList(d.series || []); setStorage(d.storage || null); })
+      .then((d) => {
+        setList(d.series || []);
+        setStorage(d.storage || null);
+        if (d.storage && typeof d.storage.internal === 'boolean') setOssInternal(d.storage.internal);
+      })
       .catch((e) => setError(e.message || String(e)));
   };
 
@@ -74,6 +81,24 @@ export function Courses() {
   const totalSize = useMemo(() => list.reduce((a, s) => a + s.totalSize, 0), [list]);
 
   const flash = (t: string) => { setNotice(t); setTimeout(() => setNotice(''), 3000); };
+
+  // 切换「上传走内网」：保存后服务端立即生效，下一次上传即按新通道
+  async function toggleInternal(next: boolean) {
+    if (savingInternal) return;
+    setSavingInternal(true);
+    setError('');
+    const prev = ossInternal;
+    setOssInternal(next);           // 乐观更新
+    try {
+      const r = await adminApi.saveCourseSettings({ ossInternal: next });
+      setOssInternal(r.ossInternal);
+      if (r.storage) setStorage(r.storage);
+      flash(next ? '上传已切换为内网通道' : '上传已切换为公网通道');
+    } catch (e) {
+      setOssInternal(prev);          // 失败回滚
+      setError((e as Error).message || String(e));
+    } finally { setSavingInternal(false); }
+  }
 
   async function saveSeries() {
     if (!draft || busy) return;
@@ -185,6 +210,26 @@ export function Courses() {
           accent={storage?.enabled ? undefined : '#b8860b'}
         />
       </div>
+
+      {storage?.enabled ? (
+        <div className="storage-bar">
+          <label className="storage-toggle">
+            <input
+              type="checkbox"
+              checked={ossInternal}
+              disabled={savingInternal}
+              onChange={(e) => void toggleInternal(e.target.checked)}
+            />
+            <span>上传走 OSS 内网端点</span>
+          </label>
+          <span className="storage-hint">
+            {ossInternal
+              ? `上传/删除走 ${storage.uploadEndpoint || '内网端点'}，不占公网流量；播放仍走公网`
+              : `上传/删除走 ${storage.endpoint || '公网端点'}，会消耗公网流量`}
+            {storage.internalSource === 'default' ? '（当前为默认值）' : null}
+          </span>
+        </div>
+      ) : null}
 
       {upload ? (
         <div className="upload-bar">

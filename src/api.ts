@@ -140,11 +140,28 @@ export interface CourseSeries {
   createdAt: number; updatedAt: number;
   lessons: CourseLesson[]; lessonCount: number; totalSize: number;
 }
+export interface CourseStorage {
+  enabled: boolean;
+  prefix: string;
+  maxSize: number;
+  uploadTtl: number;
+  playTtl: number;
+  corsHint: string;
+  region?: string;
+  endpoint?: string;
+  uploadEndpoint?: string;
+  internal?: boolean;
+  internalSource?: 'admin' | 'env' | 'default';
+}
+export interface CourseSettings {
+  ossInternal: boolean;
+  storage: CourseStorage;
+}
 export interface CoursesResult {
   series: CourseSeries[];
   admin: boolean;
   progress: Record<string, { lessonId: string; title: string; at: number }>;
-  storage: { enabled: boolean; prefix: string; maxSize: number; uploadTtl: number; playTtl: number; corsHint: string };
+  storage: CourseStorage;
 }
 
 export interface SeriesPoint { date: string; events: number; users: number; conversions: number; errors: number; }
@@ -272,6 +289,11 @@ export const adminApi = {
   uploadCover: (sid: string, file: File) =>
     uploadBinary('/api/courses/series/' + encodeURIComponent(sid) + '/cover',
       file, file.type || 'image/jpeg'),
+
+  // 存储通道设置：上传是否走 OSS 内网端点（默认 true）
+  courseSettings: () => req<CourseSettings>('/api/admin/courses/settings'),
+  saveCourseSettings: (body: { ossInternal: boolean }) =>
+    req<CourseSettings>('/api/admin/courses/settings', { method: 'PUT', body: JSON.stringify(body) }),
 
   // <video>/<img> 带不了自定义头，播放地址用 ?tk= 传管理员令牌
   videoUrl: (lessonId: string) =>

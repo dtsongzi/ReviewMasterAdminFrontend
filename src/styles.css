@@ -345,3 +345,14 @@ button { font-family: inherit; }
 .preview-image {
   max-width: 100%; max-height: 68vh; display: block; object-fit: contain; border-radius: 6px;
 }
+
+/* 课程存储通道设置条 */
+.storage-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 10px 14px; font-size: 13px;
+  background: #f8fafc; border: 1px solid var(--line); border-radius: 8px;
+}
+.storage-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; font-weight: 600; }
+.storage-toggle input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
+.storage-toggle input:disabled { cursor: not-allowed; }
+.storage-hint { color: var(--muted); font-size: 12.5px; }
