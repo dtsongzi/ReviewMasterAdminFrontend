@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth';
 
-const NAV = [
+const NAV: Array<{ to: string; label: string; end?: boolean; superOnly?: boolean }> = [
   { to: '/', label: '数据概览', end: true },
   { to: '/users', label: '用户管理' },
   { to: '/business', label: '业务指标' },
@@ -10,10 +10,12 @@ const NAV = [
   { to: '/data-config', label: '数据源设置' },
   { to: '/performance', label: '性能指标' },
   { to: '/logs', label: '日志查询' },
+  { to: '/admins', label: '管理员管理', superOnly: true },
 ];
 
 export function Layout() {
-  const { username, signOut } = useAuth();
+  const { username, superAdmin, signOut } = useAuth();
+  const visibleNav = NAV.filter((n) => !n.superOnly || superAdmin);
   return (
     <div className="layout">
       <aside className="side">
@@ -25,7 +27,7 @@ export function Layout() {
           </div>
         </div>
         <nav className="nav">
-          {NAV.map((n) => (
+          {visibleNav.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
               {n.label}
             </NavLink>

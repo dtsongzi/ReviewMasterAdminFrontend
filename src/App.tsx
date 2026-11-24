@@ -10,12 +10,19 @@ import { Logs } from './pages/Logs';
 import { ModuleAccess } from './pages/ModuleAccess';
 import { Courses } from './pages/Courses';
 import { DataConfigPage } from './pages/DataConfig';
+import { Admins } from './pages/Admins';
 
 function Guard() {
   const { token, checking } = useAuth();
   if (checking) return <div className="boot">正在校验登录态…</div>;
   if (!token) return <Navigate to="/login" replace />;
   return <Layout />;
+}
+
+// 仅超管可进入管理员管理页；普通管理员直接访问时退回首页。
+function SuperGuard() {
+  const { superAdmin } = useAuth();
+  return superAdmin ? <Admins /> : <Navigate to="/" replace />;
 }
 
 export function App() {
@@ -33,6 +40,7 @@ export function App() {
             <Route path="data-config" element={<DataConfigPage />} />
             <Route path="performance" element={<Performance />} />
             <Route path="logs" element={<Logs />} />
+            <Route path="admins" element={<SuperGuard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

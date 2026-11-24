@@ -21,7 +21,7 @@ export function Login() {
     setError('');
     try {
       const r = await adminApi.login(username.trim(), password);
-      signIn(r.token, r.username || 'admin');
+      signIn(r.token, r.username || 'admin', !!r.super);
       nav('/', { replace: true });
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : '登录失败');

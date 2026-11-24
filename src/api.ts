@@ -10,6 +10,7 @@ const BASE = (import.meta.env.VITE_API_BASE || '/reviewmaster').replace(/\/+$/, 
 const TOKEN_NS = /-test(?:\/|$)/.test(BASE) ? ':test' : '';
 const TOKEN_KEY = 'rm_admin_token' + TOKEN_NS;
 const USER_KEY = 'rm_admin_user' + TOKEN_NS;
+const SUPER_KEY = 'rm_admin_super' + TOKEN_NS;
 
 export class ApiError extends Error {
   readonly code?: string;
@@ -26,11 +27,22 @@ export function getToken(): string | null {
 export function getUsername(): string {
   try { return localStorage.getItem(USER_KEY) || 'admin'; } catch { return 'admin'; }
 }
-export function saveSession(token: string, username: string): void {
-  try { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(USER_KEY, username); } catch { /* ignore */ }
+export function isSuper(): boolean {
+  try { return localStorage.getItem(SUPER_KEY) === '1'; } catch { return false; }
+}
+export function saveSession(token: string, username: string, superAdmin = false): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, username);
+    localStorage.setItem(SUPER_KEY, superAdmin ? '1' : '0');
+  } catch { /* ignore */ }
 }
 export function clearSession(): void {
-  try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(SUPER_KEY);
+  } catch { /* ignore */ }
 }
 
 export interface Overview {
@@ -202,13 +214,42 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+export interface AdminRow {
+  id: string;
+  username: string;
+  disabled: boolean;
+  createdBy: string;
+  createdAt: number;
+}
+export interface AdminsResult {
+  ok: boolean;
+  items: AdminRow[];
+  superUsername: string;
+}
+
 export const adminApi = {
   login: (username: string, password: string) =>
-    req<{ token: string; username: string; ttl: number }>('/api/admin/login', {
+    req<{ token: string; username: string; super: boolean; ttl: number }>('/api/admin/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     }),
-  me: () => req<{ username: string }>('/api/admin/me'),
+  me: () => req<{ username: string; super: boolean; id: string | null }>('/api/admin/me'),
+  admins: () => req<AdminsResult>('/api/admin/admins'),
+  createAdmin: (username: string, password: string) =>
+    req<{ ok: boolean; id: string; username: string }>('/api/admin/admins', {
+      method: 'POST', body: JSON.stringify({ username, password }),
+    }),
+  resetAdminPassword: (id: string, password: string) =>
+    req<{ ok: boolean; username: string }>('/api/admin/admins/' + encodeURIComponent(id) + '/password', {
+      method: 'POST', body: JSON.stringify({ password }),
+    }),
+  setAdminDisabled: (id: string, disabled: boolean) =>
+    req<{ ok: boolean; username: string; disabled: boolean }>(
+      '/api/admin/admins/' + encodeURIComponent(id) + (disabled ? '/disable' : '/enable'),
+      { method: 'POST' }
+    ),
+  deleteAdmin: (id: string) =>
+    req<{ ok: boolean; username: string }>('/api/admin/admins/' + encodeURIComponent(id), { method: 'DELETE' }),
   overview: (days: number) => req<Overview>('/api/admin/overview?days=' + days),
   users: (params: { page: number; size: number; q?: string }) => {
     const qs = new URLSearchParams({ page: String(params.page), size: String(params.size) });
