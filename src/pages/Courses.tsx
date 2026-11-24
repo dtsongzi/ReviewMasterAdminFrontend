@@ -213,8 +213,8 @@ export function Courses() {
         <Kpi label="视频占用" value={fmtSize(totalSize)} />
         <Kpi
           label="视频存储"
-          value={storage?.enabled ? '阿里云 OSS' : '本机磁盘'}
-          sub={storage?.enabled ? '上传经 ECS 中转，播放走反链路' : '未配置 OSS，视频存于服务器磁盘'}
+          value={storage?.enabled ? '阿里云 OSS' : '未配置'}
+          sub={storage?.enabled ? '上传经 ECS 中转，播放走签名 URL' : '服务端缺少 OSS_* 配置，上传/播放将返回 503'}
           accent={storage?.enabled ? undefined : '#b8860b'}
         />
       </div>
@@ -271,7 +271,7 @@ export function Courses() {
                   </button>
                   <span className="badge">{s.lessonCount} 节</span>
                   <span className="badge">{fmtSize(s.totalSize)}</span>
-                  {s.cover ? <span className="badge">{s.coverStorage === 'oss' ? '封面·OSS' : '封面·本地'}</span> : null}
+                  {s.cover ? <span className="badge">封面·OSS</span> : null}
                   <span className="course-time">更新 {fmtTime(s.updatedAt)}</span>
                   <span className="actions">
                     <button className="btn-ghost btn-sm" onClick={() => setDraft({
@@ -304,7 +304,7 @@ export function Courses() {
                               <td>{i + 1}</td>
                               <td>{l.title}</td>
                               <td>{fmtSize(l.size)}</td>
-                              <td><span className="badge">{l.storage === 'oss' ? 'OSS' : '本地'}</span></td>
+                              <td><span className="badge">OSS</span></td>
                               <td>{fmtTime(l.createdAt)}</td>
                               <td className="actions">
                                 <button className="btn-ghost btn-sm" onClick={() => setPreview({ kind: 'video', lessonId: l.id, title: l.title, cover: false })}>预览</button>

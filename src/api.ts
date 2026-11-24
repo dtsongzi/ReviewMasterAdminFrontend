@@ -141,13 +141,13 @@ export interface DataConfig {
 
 export interface CourseLesson {
   id: string; title: string; mime: string; size: number; createdAt: number;
-  storage: 'oss' | 'local';
+  storage: 'oss';
 }
 export interface CourseSeries {
   id: string; title: string; desc: string;
   teacher: string; teacherTitle: string; teacherBio: string;
   intro: Record<string, string>;
-  cover: boolean; coverMime: string; coverStorage: 'oss' | 'local';
+  cover: boolean; coverMime: string; coverStorage: 'oss';
   createdAt: number; updatedAt: number;
   lessons: CourseLesson[]; lessonCount: number; totalSize: number;
 }
