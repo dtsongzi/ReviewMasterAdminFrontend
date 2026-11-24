@@ -128,6 +128,13 @@ export interface ModuleAccessResult {
 }
 
 // ---------- 会员课程 ----------
+/** 数据源代理配置（管理员专属，后端 /api/config）。 */
+export interface DataConfig {
+  emProxy: string;
+  cninfoProxy: string;
+  cninfoOpenPdf: boolean;
+}
+
 export interface CourseLesson {
   id: string; title: string; mime: string; size: number; createdAt: number;
   storage: 'oss' | 'local';
@@ -178,6 +185,9 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   try { data = await r.json() as Record<string, unknown>; } catch { /* 非 JSON */ }
 
   if (!r.ok) {
+    // 网关/后端可能直接返回 HTTP 401（非业务信封），此前只处理 data.ok=false，
+    // 导致前端停留在「已登录」界面且所有请求持续失败。
+    if (r.status === 401) clearSession();
     throw new ApiError(String((data && (data.message || data.error)) || ('请求失败 ' + r.status)), data?.code as string | undefined);
   }
   if (data && data.ok === false) {
@@ -289,6 +299,11 @@ export const adminApi = {
   uploadCover: (sid: string, file: File) =>
     uploadBinary('/api/courses/series/' + encodeURIComponent(sid) + '/cover',
       file, file.type || 'image/jpeg'),
+
+  // 数据源设置（管理员专属，主站已移除入口）
+  dataConfig: () => req<DataConfig>('/api/config'),
+  saveDataConfig: (body: DataConfig) =>
+    req<DataConfig & { ok: boolean }>('/api/config', { method: 'POST', body: JSON.stringify(body) }),
 
   // 存储通道设置：上传是否走 OSS 内网端点（默认 true）
   courseSettings: () => req<CourseSettings>('/api/admin/courses/settings'),

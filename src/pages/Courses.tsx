@@ -63,6 +63,7 @@ export function Courses() {
   const coverRef = useRef<HTMLInputElement | null>(null);
   const uploadTarget = useRef<{ sid: string; title: string } | null>(null);
   const coverTarget = useRef<string>('');
+  const noticeTimer = useRef<number | null>(null);
 
   const load = () => {
     setError('');
@@ -75,12 +76,19 @@ export function Courses() {
       .catch((e) => setError(e.message || String(e)));
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+    return () => { if (noticeTimer.current !== null) clearTimeout(noticeTimer.current); };
+  }, []);
 
   const totalLessons = useMemo(() => list.reduce((a, s) => a + s.lessonCount, 0), [list]);
   const totalSize = useMemo(() => list.reduce((a, s) => a + s.totalSize, 0), [list]);
 
-  const flash = (t: string) => { setNotice(t); setTimeout(() => setNotice(''), 3000); };
+  const flash = (t: string) => {
+    setNotice(t);
+    if (noticeTimer.current !== null) clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => { setNotice(''); noticeTimer.current = null; }, 3000);
+  };
 
   // 切换「上传走内网」：保存后服务端立即生效，下一次上传即按新通道
   async function toggleInternal(next: boolean) {

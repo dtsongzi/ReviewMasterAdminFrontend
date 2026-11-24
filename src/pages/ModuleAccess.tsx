@@ -86,6 +86,11 @@ export function ModuleAccess() {
   };
 
   const save = async () => {
+    // 该操作直接改写全站会员权益边界，保存前展示变更摘要并要求确认。
+    const changes = data ? items.filter((m) => draft[m.key] && draft[m.key] !== data.levels[m.key]) : [];
+    if (!changes.length) return;
+    const summary = changes.map((m) => `${m.label}：${data!.levels[m.key]} → ${draft[m.key]}`).join('\n');
+    if (!window.confirm(`以下 ${changes.length} 个模块的可见性将立即生效：\n\n${summary}\n\n确定保存？`)) return;
     setBusy(true); setError(''); setNotice('');
     try {
       const r = await adminApi.saveModuleAccess(draft);

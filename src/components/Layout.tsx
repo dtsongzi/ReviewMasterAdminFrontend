@@ -7,6 +7,7 @@ const NAV = [
   { to: '/business', label: '业务指标' },
   { to: '/modules', label: '会员模块权限' },
   { to: '/courses', label: '会员课程' },
+  { to: '/data-config', label: '数据源设置' },
   { to: '/performance', label: '性能指标' },
   { to: '/logs', label: '日志查询' },
 ];

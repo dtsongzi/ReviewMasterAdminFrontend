@@ -356,3 +356,11 @@ button { font-family: inherit; }
 .storage-toggle input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
 .storage-toggle input:disabled { cursor: not-allowed; }
 .storage-hint { color: var(--muted); font-size: 12.5px; }
+
+/* 数据源设置表单 */
+.ma-form { display: flex; flex-direction: column; gap: 18px; }
+.ma-form .fld { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; }
+.ma-form .fld .rc-inp { width: 100%; max-width: 680px; }
+.ma-form .fld small { font-weight: 400; }
+.ma-form .fld-inline { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+.ma-form .fld-inline input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
