@@ -23,6 +23,13 @@ test('接口前缀：所有端点都走 req()，且路径保持 /api/* 相对形
   assert.ok(endpoints.every(p => p.startsWith('/api/')), '端点路径不应自行带应用前缀（由 BASE 统一拼）');
 });
 
+test('令牌命名空间：测试构建不得复用生产管理员登录态', () => {
+  const src = read('src/api.ts');
+  assert.match(src, /TOKEN_NS\s*=\s*\/?-test/, '应按 -test 前缀区分命名空间');
+  assert.match(src, /'rm_admin_token'\s*\+\s*TOKEN_NS/, '测试令牌 key 必须带命名空间后缀');
+  assert.match(src, /'rm_admin_user'\s*\+\s*TOKEN_NS/);
+});
+
 test('Vite 代理：带前缀的接口路径原样转发到本机后端', () => {
   const vite = read('vite.config.ts');
   assert.match(vite, /'\/reviewmaster\/api'/);

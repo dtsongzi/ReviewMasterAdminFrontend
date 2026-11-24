@@ -1,11 +1,15 @@
 // 管理后台 API 客户端：令牌存储、错误码处理、各数据端点类型。
 
-const TOKEN_KEY = 'rm_admin_token';
-const USER_KEY = 'rm_admin_user';
 // 所有接口统一带 /reviewmaster 前缀（公网根 /api/* 不可达）。
 // 以前只在生产构建由 .env.production 注入，本地裸 /api/* 与线上口径不一致；
 // 现在默认就有前缀，Vite 代理原样转发到本机后端，由后端剥前缀。
 const BASE = (import.meta.env.VITE_API_BASE || '/reviewmaster').replace(/\/+$/, '');
+
+// 生产与测试后台部署在同一 origin，localStorage 按 origin 共享。测试构建的前缀含
+// /reviewmaster-test，给令牌 key 加命名空间，避免把生产管理员令牌带到测试环境。
+const TOKEN_NS = /-test(?:\/|$)/.test(BASE) ? ':test' : '';
+const TOKEN_KEY = 'rm_admin_token' + TOKEN_NS;
+const USER_KEY = 'rm_admin_user' + TOKEN_NS;
 
 export class ApiError extends Error {
   readonly code?: string;

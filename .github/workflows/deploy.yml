@@ -1,21 +1,25 @@
-name: Deploy ReviewMaster Admin (Develop)
+name: Deploy ReviewMaster Admin (Production)
 
 on:
   push:
-    branches: [develop]
+    branches: [master]
   workflow_dispatch:
 
-# 同一应用只允许一个部署；与主站前端用不同产物名，避免与其它站点共用同名产物冲突
+# 与测试后台用不同 group 和不同产物名，互不干扰
 concurrency:
-  group: deploy-reviewmaster-admin
+  group: deploy-reviewmaster-admin-production
   cancel-in-progress: true
 
 env:
   DEPLOY_PATH: '/opt/ReviewMasterAdmin'
+  API_BASE: '/reviewmaster'
+  ARTIFACT: 'reviewmaster-admin-dist.tar.gz'
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,8 +41,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # 后端 API 与主站同源，挂在 /reviewmaster 下（见 .env.production）
-          VITE_API_BASE: '/reviewmaster'
+          VITE_API_BASE: ${{ env.API_BASE }}
 
       - name: Verify dist assets
         run: |
@@ -49,18 +52,21 @@ jobs:
           echo "dist OK: $(wc -l < dist/MANIFEST.sha256) files verified"
 
       - name: Package dist
-        run: tar czf reviewmaster-admin-dist.tar.gz -C dist .
+        run: tar czf "${{ env.ARTIFACT }}" -C dist .
 
-      - name: Upload artifact to server
+      - name: Upload artifact to server (resumable)
         env:
           SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
           R_HOST: ${{ secrets.ECS_HOST }}
           R_USER: ${{ secrets.ECS_USER }}
           R_PORT: ${{ secrets.ECS_PORT }}
         run: |
+          set -euo pipefail
           printf '%s\n' "$SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
-          scp -O -i /tmp/deploy_key -o StrictHostKeyChecking=no -P "${R_PORT:-22}" reviewmaster-admin-dist.tar.gz "${R_USER}@${R_HOST}:/tmp/"
+          export R_HOST R_USER R_PORT SSH_KEY_PATH=/tmp/deploy_key
+          export UPLOAD_RETRIES=3 UPLOAD_TIMEOUT_SEC=420
+          bash scripts/upload-artifact.sh "${{ env.ARTIFACT }}" "${{ env.ARTIFACT }}" /tmp
 
       - name: Remote deploy
         uses: appleboy/ssh-action@v1.2.0
@@ -74,11 +80,11 @@ jobs:
             DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
             STAGE="$(mktemp -d /tmp/rm-admin-XXXXXX)"
             trap 'rm -rf "$STAGE"' EXIT
-            tar xzf /tmp/reviewmaster-admin-dist.tar.gz -C "$STAGE"
+            tar xzf "/tmp/${{ env.ARTIFACT }}" -C "$STAGE"
             (cd "$STAGE" && sha256sum -c MANIFEST.sha256)
             rm -rf "$DEPLOY_PATH"
             mv "$STAGE" "$DEPLOY_PATH"
             trap - EXIT
-            rm -f /tmp/reviewmaster-admin-dist.tar.gz
+            rm -f "/tmp/${{ env.ARTIFACT }}"
             chmod -R 755 "$DEPLOY_PATH"
-            echo "Admin deploy OK: $DEPLOY_PATH"
+            echo "Production admin deploy OK: $DEPLOY_PATH"

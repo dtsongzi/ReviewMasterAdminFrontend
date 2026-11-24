@@ -1,0 +1,100 @@
+name: Deploy ReviewMaster Admin (Test)
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-reviewmaster-admin-test
+  cancel-in-progress: true
+
+env:
+  DEPLOY_PATH: '/opt/ReviewMasterAdmin-test'
+  # 测试后台必须指向测试后端（3003 对应的 /reviewmaster-test 前缀），绝不能打生产接口
+  API_BASE: '/reviewmaster-test'
+  ARTIFACT: 'reviewmaster-admin-test-dist.tar.gz'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript 类型检查
+        run: npm run typecheck
+      - name: Unit tests（接口前缀守卫）
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_BASE: ${{ env.API_BASE }}
+
+      - name: Verify dist assets
+        run: |
+          set -e
+          test -s dist/index.html
+          for f in dist/assets/*.js; do node --check "$f"; done
+          (cd dist && sha256sum index.html assets/*.js assets/*.css > MANIFEST.sha256)
+          echo "dist OK: $(wc -l < dist/MANIFEST.sha256) files verified"
+
+      # 构建产物守卫：测试后台里不允许出现生产 API 前缀
+      - name: Guard test API prefix
+        run: |
+          set -e
+          if grep -rl --include='*.js' '/reviewmaster/api' dist/assets; then
+            echo "测试后台构建产物包含生产 API 前缀，拒绝部署"
+            exit 1
+          fi
+          echo "测试后台 API 前缀守卫通过：仅 /reviewmaster-test"
+
+      - name: Package dist
+        run: tar czf "${{ env.ARTIFACT }}" -C dist .
+
+      - name: Upload artifact to server (resumable)
+        env:
+          SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+          R_HOST: ${{ secrets.ECS_HOST }}
+          R_USER: ${{ secrets.ECS_USER }}
+          R_PORT: ${{ secrets.ECS_PORT }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          export R_HOST R_USER R_PORT SSH_KEY_PATH=/tmp/deploy_key
+          export UPLOAD_RETRIES=3 UPLOAD_TIMEOUT_SEC=420
+          bash scripts/upload-artifact.sh "${{ env.ARTIFACT }}" "${{ env.ARTIFACT }}" /tmp
+
+      - name: Remote deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          port: ${{ secrets.ECS_PORT || 22 }}
+          script: |
+            set -e
+            DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+            STAGE="$(mktemp -d /tmp/rm-admin-test-XXXXXX)"
+            trap 'rm -rf "$STAGE"' EXIT
+            tar xzf "/tmp/${{ env.ARTIFACT }}" -C "$STAGE"
+            (cd "$STAGE" && sha256sum -c MANIFEST.sha256)
+            rm -rf "$DEPLOY_PATH"
+            mv "$STAGE" "$DEPLOY_PATH"
+            trap - EXIT
+            rm -f "/tmp/${{ env.ARTIFACT }}"
+            chmod -R 755 "$DEPLOY_PATH"
+            echo "Test admin deploy OK: $DEPLOY_PATH"

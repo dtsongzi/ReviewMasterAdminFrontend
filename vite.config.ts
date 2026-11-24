@@ -29,6 +29,9 @@ export default defineConfig({
     proxy: {
       '/reviewmaster/api': apiProxy,
       '/reviewmaster/health': apiProxy,
+      // 测试环境前缀（develop 构建），同样透传到本机后端
+      '/reviewmaster-test/api': apiProxy,
+      '/reviewmaster-test/health': apiProxy,
       // 保留裸 /api 代理，仅供本地 curl 与老工具排查
       '/api': apiProxy,
     },
