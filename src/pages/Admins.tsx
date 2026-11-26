@@ -41,7 +41,7 @@ export function Admins() {
     setBusyId(row.id); setError(''); setNotice('');
     try {
       const r = await adminApi.resetAdminPassword(row.id, pw);
-      setNotice(`✓ 已重置 ${r.username} 的密码，旧令牌仍有效至过期`);
+      setNotice(`✓ 已重置 ${r.username} 的密码，该管理员的旧登录态立即失效`);
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusyId(''); }

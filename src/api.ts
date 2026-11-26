@@ -271,6 +271,12 @@ export const adminApi = {
     }),
   unbanUser: (id: string) =>
     req<{ id: string; banned: boolean }>(`/api/admin/users/${encodeURIComponent(id)}/unban`, { method: 'POST' }),
+  // 重置用户密码（仅超管）：重置后该用户旧令牌立即失效
+  resetUserPassword: (id: string, password: string) =>
+    req<{ id: string; username: string | null; phone: string | null }>(
+      `/api/admin/users/${encodeURIComponent(id)}/password`,
+      { method: 'POST', body: JSON.stringify({ password }) }
+    ),
 
   // 会员兑换码
   memberCodes: (params: { status?: string; q?: string; limit?: number; offset?: number } = {}) => {

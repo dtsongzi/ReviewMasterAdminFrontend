@@ -4,6 +4,7 @@ import { adminApi } from '../api';
 import type { BatchCodesResult, CodesResult, MemberCode, UserRow, UsersResult } from '../api';
 import { Empty, ErrorMsg, Panel } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtInt } from '../format';
+import { useAuth } from '../auth';
 
 const SIZE = 20;
 const CODE_PAGE_SIZES = [20, 50, 100, 200];
@@ -24,6 +25,9 @@ const STATUS_LABEL: Record<string, string> = {
 function canOperate(status: string) { return status === 'unused' || status === 'sold'; }
 
 export function Users() {
+  // 重置用户密码仅超级管理员可用（后端也用 requireSuper 兜底，前端仅控制入口可见性）
+  const { superAdmin } = useAuth();
+
   // 用户列表
   const [kw, setKw] = useState('');
   const [q, setQ] = useState('');
@@ -116,6 +120,21 @@ export function Users() {
     setBusyId(u.id);
     try { await adminApi.banUser(u.id, reason); setVer((v) => v + 1); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusyId(''); }
+  }
+
+  async function resetPassword(u: UserRow) {
+    const who = u.username || u.phone || u.id;
+    const pw = window.prompt(`为 ${who} 设置新密码（至少 8 位）。\n重置后该用户所有旧登录状态立即失效，需重新登录。`, '');
+    if (pw === null) return;
+    if (pw.length < 8) { setError('新密码至少 8 位'); return; }
+    if (pw.length > 128) { setError('新密码过长（最多 128 位）'); return; }
+    setBusyId(u.id);
+    setError('');
+    try {
+      await adminApi.resetUserPassword(u.id, pw);
+      // 无需刷新列表：密码不回显；重置成功后旧 token 立即失效在服务端生效。
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusyId(''); }
   }
 
@@ -259,13 +278,25 @@ export function Users() {
                     <td>{fmtDate(u.createdAt)}</td>
                     <td>{fmtDateTime(u.lastActive)}</td>
                     <td>
-                      <button
-                        className={u.banned ? 'btn-ghost btn-sm' : 'btn-danger btn-sm'}
-                        disabled={busyId === u.id}
-                        onClick={() => toggleBan(u)}
-                      >
-                        {busyId === u.id ? '处理中…' : (u.banned ? '解封' : '封禁')}
-                      </button>
+                      <div className="ma-actions">
+                        <button
+                          className={u.banned ? 'btn-ghost btn-sm' : 'btn-danger btn-sm'}
+                          disabled={busyId === u.id}
+                          onClick={() => toggleBan(u)}
+                        >
+                          {busyId === u.id ? '处理中…' : (u.banned ? '解封' : '封禁')}
+                        </button>
+                        {superAdmin ? (
+                          <button
+                            className="btn-ghost btn-sm"
+                            disabled={busyId === u.id}
+                            onClick={() => resetPassword(u)}
+                            title="仅超级管理员可重置用户密码；重置后该用户旧登录态立即失效"
+                          >
+                            重置密码
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
