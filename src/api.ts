@@ -208,7 +208,8 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
   }
   if (data && data.ok === false) {
     const code = data.code as string | undefined;
-    if (code === 'AUTH_UNAUTHORIZED') clearSession();
+    // 管理员令牌失效两种码都要清会话；AUTH_UNAUTHORIZED 保留兼容（用户令牌误用等场景）。
+    if (code === 'AUTH_ADMIN_REQUIRED' || code === 'AUTH_UNAUTHORIZED') clearSession();
     throw new ApiError(String(data.message || '请求失败'), code);
   }
   return data as T;
