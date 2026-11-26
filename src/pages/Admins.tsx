@@ -12,9 +12,7 @@ export function Admins() {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState('');
-  const [form, setForm] = useState({ username: '', password: '' });
-  // 创建管理员时默认明文显示初始密码，便于核对；可手动切回掩码。
-  const [showPassword, setShowPassword] = useState(true);
+  const [form, setForm] = useState({ username: '' });
 
   async function load() {
     setError('');
@@ -25,25 +23,24 @@ export function Admins() {
 
   async function create(e: FormEvent) {
     e.preventDefault();
-    if (busy || !form.username.trim() || !form.password) return;
+    if (busy || !form.username.trim()) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      const r = await adminApi.createAdmin(form.username.trim(), form.password);
-      setNotice(`✓ 已创建管理员 ${r.username}，请把初始密码安全告知本人`);
-      setForm({ username: '', password: '' });
+      // 密码由服务端随机生成，前端不再输入，直接展示生成结果
+      const r = await adminApi.createAdmin(form.username.trim());
+      setNotice(`✓ 已创建管理员 ${r.username}，初始密码：${r.password || '（未回显）'}。请安全告知本人。`);
+      setForm({ username: '' });
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
   async function reset(row: AdminRow) {
-    const pw = window.prompt(`为 ${row.username} 设置新密码（至少 8 位）：`, '');
-    if (pw === null) return;
-    if (pw.length < 8) { setError('新密码至少 8 位'); return; }
     setBusyId(row.id); setError(''); setNotice('');
     try {
-      const r = await adminApi.resetAdminPassword(row.id, pw);
-      setNotice(`✓ 已重置 ${r.username} 的密码，该管理员的旧登录态立即失效`);
+      // 密码由服务端随机生成并回显；管理员无需改密，也不显示任何提醒横幅
+      const r = await adminApi.resetAdminPassword(row.id);
+      setNotice(`✓ 已重置 ${r.username} 的密码为：${r.password || '（未回显）'}。旧登录态立即失效，请安全告知本人。`);
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusyId(''); }
@@ -92,25 +89,9 @@ export function Admins() {
             <span>账号</span>
             <input className="rc-inp" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="登录用户名，全局唯一" />
           </label>
-          <label className="fld">
-            <span>初始密码</span>
-            <input
-              className="rc-inp"
-              type={showPassword ? 'text' : 'password'}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder="至少 8 位"
-              autoComplete="new-password"
-            />
-            <div className="fld-hint-row">
-              <button className="btn-ghost btn-sm" type="button" onClick={() => setShowPassword((v) => !v)}>
-                {showPassword ? '隐藏密码' : '显示密码'}
-              </button>
-              <small className="muted">默认明文显示便于核对；创建后请把密码安全告知本人，系统不保存明文。</small>
-            </div>
-          </label>
+          <small className="muted">初始密码将由系统随机生成并直接展示，无需手动输入。</small>
           <div className="ma-actions">
-            <button className="btn-primary" type="submit" disabled={busy || !form.username.trim() || !form.password}>
+            <button className="btn-primary" type="submit" disabled={busy || !form.username.trim()}>
               {busy ? '创建中…' : '创建管理员'}
             </button>
           </div>

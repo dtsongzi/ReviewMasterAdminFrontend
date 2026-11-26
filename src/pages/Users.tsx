@@ -34,6 +34,7 @@ export function Users() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<UsersResult | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [ver, setVer] = useState(0);
   const [busyId, setBusyId] = useState('');
 
@@ -125,15 +126,14 @@ export function Users() {
 
   async function resetPassword(u: UserRow) {
     const who = u.username || u.phone || u.id;
-    const pw = window.prompt(`为 ${who} 设置新密码（至少 8 位）。\n重置后该用户所有旧登录状态立即失效，需重新登录。`, '');
-    if (pw === null) return;
-    if (pw.length < 8) { setError('新密码至少 8 位'); return; }
-    if (pw.length > 128) { setError('新密码过长（最多 128 位）'); return; }
     setBusyId(u.id);
     setError('');
+    setNotice('');
     try {
-      await adminApi.resetUserPassword(u.id, pw);
-      // 无需刷新列表：密码不回显；重置成功后旧 token 立即失效在服务端生效。
+      const r = await adminApi.resetUserPassword(u.id);
+      // 随机初始密码只在这里回显一次；之后仍可在列表「初始密码」列查看，直到用户自行改密。
+      setNotice(`✓ 已重置 ${who} 的密码为：${r.password || '（未回显）'}。该用户所有旧登录态立即失效，网站顶部会提示其修改密码。`);
+      setVer((v) => v + 1); // 刷新列表，展示新密码与「初始密码」标识
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusyId(''); }
   }
@@ -247,6 +247,7 @@ export function Users() {
         </form>
       </div>
       <ErrorMsg msg={error} />
+      {notice ? <div className="ma-notice ok">{notice}</div> : null}
 
       <Panel title={'用户列表' + (data ? ' · 共 ' + fmtInt(data.total) + ' 人' : '')}>
         {!data ? <div className="loading">加载中…</div> : data.items.length === 0 ? <Empty /> : (
@@ -254,7 +255,7 @@ export function Users() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>ID</th><th>用户名</th><th>手机号</th><th>会员</th><th>状态</th>
+                  <th>ID</th><th>用户名</th><th>手机号</th><th>初始密码</th><th>会员</th><th>状态</th>
                   <th>使用的会员码</th><th>注册时间</th><th>最后活跃</th><th>操作</th>
                 </tr>
               </thead>
@@ -264,6 +265,14 @@ export function Users() {
                     <td className="mono">{u.id}</td>
                     <td>{u.username || '—'}</td>
                     <td className="mono">{u.phone || '—'}</td>
+                    <td>
+                      {u.mustChangePassword && u.initialPassword ? (
+                        <>
+                          <div className="mono">{u.initialPassword}</div>
+                          <span className="badge pro" title="用户尚未修改，网站顶部会提示改密">初始密码</span>
+                        </>
+                      ) : <span className="muted">已修改 / 未重置</span>}
+                    </td>
                     <td>
                       {u.member.isPro
                         ? <span className="badge pro">{u.member.plan}{u.member.daysLeft ? ' · ' + u.member.daysLeft + ' 天' : ''}</span>

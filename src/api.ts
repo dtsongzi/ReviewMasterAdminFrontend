@@ -58,6 +58,8 @@ export interface UserRow {
   id: string; username: string | null; phone: string | null;
   createdAt: number | null; via: string | null; member: MemberState; lastActive: number | null;
   banned: boolean; banReason: string | null; bannedAt: number | null; usedCode: UsedCode | null;
+  // 超管重置后的初始密码（仅未改密时可查看），用户自助改密后标记清除、密码置空
+  mustChangePassword: boolean; initialPassword: string | null;
 }
 export interface UsersResult { items: UserRow[]; total: number; page: number; size: number; }
 
@@ -236,13 +238,14 @@ export const adminApi = {
     }),
   me: () => req<{ username: string; super: boolean; id: string | null }>('/api/admin/me'),
   admins: () => req<AdminsResult>('/api/admin/admins'),
-  createAdmin: (username: string, password: string) =>
-    req<{ ok: boolean; id: string; username: string }>('/api/admin/admins', {
-      method: 'POST', body: JSON.stringify({ username, password }),
+  // 不传 password 时后端随机生成并回显，前端直接展示；管理员不强制改密、不做横幅提醒
+  createAdmin: (username: string, password?: string) =>
+    req<{ ok: boolean; id: string; username: string; password?: string }>('/api/admin/admins', {
+      method: 'POST', body: JSON.stringify({ username, ...(password ? { password } : {}) }),
     }),
-  resetAdminPassword: (id: string, password: string) =>
-    req<{ ok: boolean; username: string }>('/api/admin/admins/' + encodeURIComponent(id) + '/password', {
-      method: 'POST', body: JSON.stringify({ password }),
+  resetAdminPassword: (id: string, password?: string) =>
+    req<{ ok: boolean; username: string; password?: string }>('/api/admin/admins/' + encodeURIComponent(id) + '/password', {
+      method: 'POST', body: JSON.stringify(password ? { password } : {}),
     }),
   setAdminDisabled: (id: string, disabled: boolean) =>
     req<{ ok: boolean; username: string; disabled: boolean }>(
@@ -272,10 +275,11 @@ export const adminApi = {
   unbanUser: (id: string) =>
     req<{ id: string; banned: boolean }>(`/api/admin/users/${encodeURIComponent(id)}/unban`, { method: 'POST' }),
   // 重置用户密码（仅超管）：重置后该用户旧令牌立即失效
-  resetUserPassword: (id: string, password: string) =>
-    req<{ id: string; username: string | null; phone: string | null }>(
+  // 服务端随机生成初始密码并回显；同时加密存库供列表查看，用户网站顶部会提示其修改
+  resetUserPassword: (id: string) =>
+    req<{ id: string; username: string | null; phone: string | null; password?: string; mustChangePassword: boolean }>(
       `/api/admin/users/${encodeURIComponent(id)}/password`,
-      { method: 'POST', body: JSON.stringify({ password }) }
+      { method: 'POST', body: JSON.stringify({}) }
     ),
 
   // 会员兑换码
