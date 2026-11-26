@@ -76,6 +76,9 @@ button { font-family: inherit; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
 .badge.pro { background: #fef3c7; color: #92400e; }
 .badge.free { background: #e2e8f0; color: #475569; }
+/* 当前登录管理员身份标识 */
+.badge.super { background: #fef3c7; color: #92400e; font-weight: 600; }
+.badge.normal { background: #e2e8f0; color: #475569; }
 
 .tabs { display: flex; gap: 6px; }
 .tab { border: 1px solid var(--line); background: #fff; color: var(--muted); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; }

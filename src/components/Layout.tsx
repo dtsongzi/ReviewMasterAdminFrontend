@@ -40,6 +40,9 @@ export function Layout() {
           <div className="topbar-title">运营数据平台</div>
           <div className="who">
             <span>{username}</span>
+            <span className={superAdmin ? 'badge super' : 'badge normal'}>
+              {superAdmin ? '超级管理员' : '普通管理员'}
+            </span>
             <button className="btn-ghost" onClick={signOut}>退出</button>
           </div>
         </header>
