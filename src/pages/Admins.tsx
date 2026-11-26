@@ -13,6 +13,8 @@ export function Admins() {
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState('');
   const [form, setForm] = useState({ username: '', password: '' });
+  // 创建管理员时默认明文显示初始密码，便于核对；可手动切回掩码。
+  const [showPassword, setShowPassword] = useState(true);
 
   async function load() {
     setError('');
@@ -92,8 +94,20 @@ export function Admins() {
           </label>
           <label className="fld">
             <span>初始密码</span>
-            <input className="rc-inp" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="至少 8 位" />
-            <small className="muted">创建后请把密码安全告知本人；系统不保存明文。</small>
+            <input
+              className="rc-inp"
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              placeholder="至少 8 位"
+              autoComplete="new-password"
+            />
+            <div className="fld-hint-row">
+              <button className="btn-ghost btn-sm" type="button" onClick={() => setShowPassword((v) => !v)}>
+                {showPassword ? '隐藏密码' : '显示密码'}
+              </button>
+              <small className="muted">默认明文显示便于核对；创建后请把密码安全告知本人，系统不保存明文。</small>
+            </div>
           </label>
           <div className="ma-actions">
             <button className="btn-primary" type="submit" disabled={busy || !form.username.trim() || !form.password}>

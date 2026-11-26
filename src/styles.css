@@ -362,5 +362,6 @@ button { font-family: inherit; }
 .ma-form .fld { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; }
 .ma-form .fld .rc-inp { width: 100%; max-width: 680px; }
 .ma-form .fld small { font-weight: 400; }
+.ma-form .fld-hint-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ma-form .fld-inline { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
 .ma-form .fld-inline input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
