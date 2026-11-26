@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     superAdmin,
     checking,
     signIn: (t: string, u: string, s = false) => { saveSession(t, u, s); setToken(t); setUsername(u); setSuperAdmin(s); setChecking(false); },
-    signOut: () => { clearSession(); setToken(null); setUsername('admin'); setSuperAdmin(false); },
+    signOut: () => { clearSession(); setToken(null); setUsername(''); setSuperAdmin(false); },
   }), [token, username, superAdmin, checking]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -25,7 +25,7 @@ export function getToken(): string | null {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
 }
 export function getUsername(): string {
-  try { return localStorage.getItem(USER_KEY) || 'admin'; } catch { return 'admin'; }
+  try { return localStorage.getItem(USER_KEY) || ''; } catch { return ''; }
 }
 export function isSuper(): boolean {
   try { return localStorage.getItem(SUPER_KEY) === '1'; } catch { return false; }

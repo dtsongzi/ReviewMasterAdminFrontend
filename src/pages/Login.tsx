@@ -7,7 +7,7 @@ import { useAuth } from '../auth';
 export function Login() {
   const { token, signIn } = useAuth();
   const nav = useNavigate();
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -21,7 +21,7 @@ export function Login() {
     setError('');
     try {
       const r = await adminApi.login(username.trim(), password);
-      signIn(r.token, r.username || 'admin', !!r.super);
+      signIn(r.token, r.username || username.trim(), !!r.super);
       nav('/', { replace: true });
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : '登录失败');
@@ -38,7 +38,12 @@ export function Login() {
         <p className="login-hint">仅限管理员账号登录</p>
         <label>
           管理员账号
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            placeholder="请输入管理员账号"
+          />
         </label>
         <label>
           密码
