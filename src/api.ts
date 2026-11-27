@@ -55,7 +55,7 @@ export interface MemberState {
 }
 export interface UsedCode { code: string; plan: string; days: number; usedAt: number | null; }
 export interface UserRow {
-  id: string; username: string | null; phone: string | null;
+  id: string; email: string | null;
   createdAt: number | null; via: string | null; member: MemberState; lastActive: number | null;
   banned: boolean; banReason: string | null; bannedAt: number | null; usedCode: UsedCode | null;
   // 超管重置后的初始密码（仅未改密时可查看），用户自助改密后标记清除、密码置空
@@ -70,7 +70,7 @@ export interface MemberCode {
   usedBy: string | null; usedAt: number | null; activatedAt: number | null;
   revokedAt: number | null; discardedAt: number | null; discardedBy: string | null;
   status: 'unused' | 'sold' | 'activated' | 'discarded';
-  usedUser?: { id: string; username: string | null; phone: string | null } | null;
+  usedUser?: { id: string; email: string | null } | null;
 }
 export interface CodesResult {
   items: MemberCode[]; total: number;
@@ -301,7 +301,7 @@ export const adminApi = {
   // 重置用户密码（仅超管）：重置后该用户旧令牌立即失效
   // 服务端随机生成初始密码并回显；同时加密存库供列表查看，用户网站顶部会提示其修改
   resetUserPassword: (id: string) =>
-    req<{ id: string; username: string | null; phone: string | null; password?: string; mustChangePassword: boolean }>(
+    req<{ id: string; email: string | null; password?: string; mustChangePassword: boolean }>(
       `/api/admin/users/${encodeURIComponent(id)}/password`,
       { method: 'POST', body: JSON.stringify({}) }
     ),

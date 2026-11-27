@@ -109,7 +109,7 @@ export function Users() {
   async function toggleBan(u: UserRow) {
     setError('');
     if (u.banned) {
-      if (!window.confirm(`确定解封 ${u.username || u.phone || u.id}？`)) return;
+      if (!window.confirm(`确定解封 ${u.email || u.id}？`)) return;
       setBusyId(u.id);
       try { await adminApi.unbanUser(u.id); setVer((v) => v + 1); }
       catch (e) { setError(e instanceof Error ? e.message : String(e)); }
@@ -125,7 +125,7 @@ export function Users() {
   }
 
   async function resetPassword(u: UserRow) {
-    const who = u.username || u.phone || u.id;
+    const who = u.email || u.id;
     setBusyId(u.id);
     setError('');
     setNotice('');
@@ -242,7 +242,7 @@ export function Users() {
       <div className="page-head">
         <h1>用户管理</h1>
         <form className="search" onSubmit={(e) => { e.preventDefault(); setPage(1); setQ(kw.trim()); }}>
-          <input value={kw} onChange={(e) => setKw(e.target.value)} placeholder="搜索用户名 / 手机号 / ID" />
+          <input value={kw} onChange={(e) => setKw(e.target.value)} placeholder="搜索邮箱 / ID" />
           <button className="btn-primary" type="submit">搜索</button>
         </form>
       </div>
@@ -255,7 +255,7 @@ export function Users() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>ID</th><th>用户名</th><th>手机号</th><th>初始密码</th><th>会员</th><th>状态</th>
+                  <th>ID</th><th>邮箱</th><th>初始密码</th><th>会员</th><th>状态</th>
                   <th>使用的会员码</th><th>注册时间</th><th>最后活跃</th><th>操作</th>
                 </tr>
               </thead>
@@ -263,8 +263,7 @@ export function Users() {
                 {data.items.map((u) => (
                   <tr key={u.id}>
                     <td className="mono">{u.id}</td>
-                    <td>{u.username || '—'}</td>
-                    <td className="mono">{u.phone || '—'}</td>
+                    <td className="mono">{u.email || '—'}</td>
                     <td>
                       {u.mustChangePassword && u.initialPassword ? (
                         <>
@@ -462,7 +461,7 @@ export function Users() {
                         {STATUS_LABEL[c.status] || c.status}
                       </span>
                     </td>
-                    <td>{c.usedUser ? (c.usedUser.username || c.usedUser.phone || c.usedUser.id) : '—'}</td>
+                    <td>{c.usedUser ? (c.usedUser.email || c.usedUser.id) : '—'}</td>
                     <td>{fmtDateTime(c.activatedAt || c.usedAt)}</td>
                     <td>{fmtDateTime(c.soldAt)}</td>
                     <td>{fmtDateTime(c.createdAt)}</td>
