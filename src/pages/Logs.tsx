@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { adminApi } from '../api';
 import type { LogsResult } from '../api';
@@ -22,6 +22,8 @@ function fmtLogTime(ts: string): string {
 
 const LEVELS = ['', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'];
 const LIMITS = [100, 200, 500, 1000];
+/** 筛选条件变化后的防抖延时：避免逐字符输入触发查询风暴。 */
+const DEBOUNCE_MS = 280;
 
 export function Logs() {
   const [date, setDate] = useState<string>(today);
@@ -35,7 +37,16 @@ export function Logs() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // 自增序号 + AbortController 双重守卫：旧请求被中止且不允许回写，只接受最新一次查询的响应。
+  const requestIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const load = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const id = ++requestIdRef.current;
     setLoading(true);
     setError('');
     try {
@@ -46,26 +57,46 @@ export function Logs() {
         module: module.trim() || undefined,
         q: q.trim() || undefined,
         limit,
-      });
+      }, { signal: controller.signal });
+      if (id !== requestIdRef.current || controller.signal.aborted) return;
       setData(r);
     } catch (e) {
+      // 被新查询取代/组件卸载导致的取消不是错误，不展示也不回写。
+      if (id !== requestIdRef.current || controller.signal.aborted) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (id === requestIdRef.current) setLoading(false);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   }, [date, hour, level, module, q, limit]);
 
-  useEffect(() => { void load(); }, [load]);
+  // 手动触发（刷新按钮 / 表单提交 / 自动刷新）立即查询，并取消待执行的防抖。
+  const loadNow = useCallback(() => {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    debounceRef.current = setTimeout(() => { debounceRef.current = null; void load(); }, DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    };
+  }, [load]);
+
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  }, []);
 
   useEffect(() => {
     if (!auto) return;
-    const t = setInterval(() => { void load(); }, 10000);
+    const t = setInterval(() => { loadNow(); }, 10000);
     return () => clearInterval(t);
-  }, [auto, load]);
+  }, [auto, loadNow]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    void load();
+    loadNow();
   }
 
   return (
@@ -77,7 +108,7 @@ export function Logs() {
             <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
             每 10 秒自动刷新
           </label>
-          <button className="btn-ghost" type="button" onClick={() => void load()} disabled={loading}>
+          <button className="btn-ghost" type="button" onClick={loadNow} disabled={loading}>
             {loading ? '查询中…' : '刷新'}
           </button>
         </div>

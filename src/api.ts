@@ -192,29 +192,53 @@ export interface CoursesResult {
 export interface SeriesPoint { date: string; events: number; users: number; conversions: number; errors: number; }
 export interface TimeseriesResult { days: number; series: SeriesPoint[]; }
 
-async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
+/** 默认请求超时（毫秒）。调用方可按需通过 req 的第三个参数覆盖。 */
+const DEFAULT_TIMEOUT_MS = 15000;
+
+async function req<T>(path: string, opts: RequestInit = {}, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<T> {
   const headers: Record<string, string> = Object.assign({}, (opts.headers as Record<string, string>) || {});
   const token = getToken();
   if (token) headers['X-Fp-Token'] = token;
   if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
 
-  const r = await fetch(BASE + path, { ...opts, headers });
-  let data: Record<string, unknown> | null = null;
-  try { data = await r.json() as Record<string, unknown>; } catch { /* 非 JSON */ }
+  // 内部控制器同时承担超时与外部取消：外部 signal 能取消本次请求，timeoutMs 到点强制中止，
+  // 避免慢请求悬挂。超时后 fetch 立即 reject，不会遗留回调。
+  const controller = new AbortController();
+  const external = opts.signal;
+  const forwardAbort = () => { controller.abort(external?.reason); };
+  if (external) {
+    if (external.aborted) controller.abort(external.reason);
+    else external.addEventListener('abort', forwardAbort, { once: true });
+  }
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
 
-  if (!r.ok) {
-    // 网关/后端可能直接返回 HTTP 401（非业务信封），此前只处理 data.ok=false，
-    // 导致前端停留在「已登录」界面且所有请求持续失败。
-    if (r.status === 401) clearSession();
-    throw new ApiError(String((data && (data.message || data.error)) || ('请求失败 ' + r.status)), data?.code as string | undefined);
+  try {
+    const r = await fetch(BASE + path, { ...opts, headers, signal: controller.signal });
+    let data: Record<string, unknown> | null = null;
+    try { data = await r.json() as Record<string, unknown>; } catch { /* 非 JSON */ }
+
+    if (!r.ok) {
+      // 网关/后端可能直接返回 HTTP 401（非业务信封），此前只处理 data.ok=false，
+      // 导致前端停留在「已登录」界面且所有请求持续失败。
+      if (r.status === 401) clearSession();
+      throw new ApiError(String((data && (data.message || data.error)) || ('请求失败 ' + r.status)), data?.code as string | undefined);
+    }
+    if (data && data.ok === false) {
+      const code = data.code as string | undefined;
+      // 管理员令牌失效两种码都要清会话；AUTH_UNAUTHORIZED 保留兼容（用户令牌误用等场景）。
+      if (code === 'AUTH_ADMIN_REQUIRED' || code === 'AUTH_UNAUTHORIZED') clearSession();
+      throw new ApiError(String(data.message || '请求失败'), code);
+    }
+    return data as T;
+  } catch (e) {
+    if (timedOut) throw new ApiError('请求超时，请稍后重试', 'TIMEOUT');
+    if (external?.aborted) throw new ApiError('请求已取消', 'ABORTED');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    external?.removeEventListener('abort', forwardAbort);
   }
-  if (data && data.ok === false) {
-    const code = data.code as string | undefined;
-    // 管理员令牌失效两种码都要清会话；AUTH_UNAUTHORIZED 保留兼容（用户令牌误用等场景）。
-    if (code === 'AUTH_ADMIN_REQUIRED' || code === 'AUTH_UNAUTHORIZED') clearSession();
-    throw new ApiError(String(data.message || '请求失败'), code);
-  }
-  return data as T;
 }
 
 export interface AdminRow {
@@ -323,15 +347,15 @@ export const adminApi = {
   resetModuleAccess: () =>
     req<ModuleAccessResult>('/api/admin/module-access/reset', { method: 'POST', body: '{}' }),
 
-  // 线上日志查询
-  logs: (params: { date: string; hour?: number | null; level?: string; module?: string; q?: string; limit?: number }) => {
+  // 线上日志查询：opts.signal 用于取消被新筛选条件取代的旧请求。
+  logs: (params: { date: string; hour?: number | null; level?: string; module?: string; q?: string; limit?: number }, opts?: { signal?: AbortSignal }) => {
     const qs = new URLSearchParams({ date: params.date });
     if (params.hour != null) qs.set('hour', String(params.hour));
     if (params.level) qs.set('level', params.level);
     if (params.module) qs.set('module', params.module);
     if (params.q) qs.set('q', params.q);
     if (params.limit) qs.set('limit', String(params.limit));
-    return req<LogsResult>('/api/admin/logs?' + qs.toString());
+    return req<LogsResult>('/api/admin/logs?' + qs.toString(), { signal: opts?.signal });
   },
 
   // ---------- 会员课程（管理后台直接读写 /api/courses） ----------

@@ -97,4 +97,25 @@ jobs:
             trap - EXIT
             rm -f "/tmp/${{ env.ARTIFACT }}"
             chmod -R 755 "$DEPLOY_PATH"
+            # 递归 755 后收紧可能存在的 .env（部署产物本不应含 .env，有则必须为 600）
+            if [ -f "$DEPLOY_PATH/.env" ]; then chmod 600 "$DEPLOY_PATH/.env"; fi
+            # Nginx 静态根同步：CI 产物在 /opt/，站点根在 /www/wwwroot/rongyuestock.com/。
+            # 幂等：已是软链则校正指向，不存在则创建；若是真实目录绝不删除/覆盖，仅告警待人工确认。
+            WEB_ROOT="/www/wwwroot/rongyuestock.com"
+            LINK_NAME="${WEB_ROOT}/ReviewMasterAdmin-test"
+            LINK_TARGET="${DEPLOY_PATH}"
+            if [ -L "$LINK_NAME" ]; then
+              if [ "$(readlink "$LINK_NAME")" != "$LINK_TARGET" ]; then
+                ln -sfn "$LINK_TARGET" "$LINK_NAME"
+                echo "软链已校正：$LINK_NAME -> $LINK_TARGET"
+              else
+                echo "软链已就绪：$LINK_NAME -> $LINK_TARGET"
+              fi
+            elif [ -e "$LINK_NAME" ]; then
+              echo "::warning::【需人工确认】$LINK_NAME 是真实目录（非软链），为避免数据丢失未做任何改动。请人工确认后把内容迁移到 $LINK_TARGET 并改为软链。"
+            else
+              mkdir -p "$WEB_ROOT"
+              ln -s "$LINK_TARGET" "$LINK_NAME"
+              echo "软链已创建：$LINK_NAME -> $LINK_TARGET"
+            fi
             echo "Test admin deploy OK: $DEPLOY_PATH"
